@@ -6,7 +6,9 @@ const today=()=>new Date().toISOString().slice(0,10);
 const fmtDate=s=>{if(!s)return'';const [y,m,d]=s.split('-');return `${d}/${m}/${y}`};
 const safe=s=>String(s||'').replace(/[<>]/g,'');
 let db,currentId=null,editingId=null,tempAttachments=[],tempSignature=null,deferredPrompt=null,previewReceiptId=null,previewSupportId=null;
-let state={meta:{reportType:'caja',placeDate:'',period:'',startDate:'',endDate:'',responsible:'ANDRES GUTIERREZ BECERRA',area:'OPERACIONES',position:'COPILOTO',aircraft:'HK4900',customAircraft:'',cardNumber:'',initialBalance:1000000,secondDeposit:0,observations:''},movements:[],updatedAt:new Date().toISOString()};
+let activeModule=null;
+function defaultState(module='caja'){return{meta:{reportType:module,placeDate:'',period:'',startDate:'',endDate:'',responsible:'ANDRES GUTIERREZ BECERRA',area:'OPERACIONES',position:'COPILOTO',aircraft:'HK4900',customAircraft:'',cardNumber:'',initialBalance:module==='caja'?1000000:0,secondDeposit:0,observations:''},movements:[],updatedAt:new Date().toISOString()}}
+let state=defaultState('caja');
 if(window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
 
 function toast(msg){const t=$('#toast');t.textContent=msg;t.classList.remove('hidden');setTimeout(()=>t.classList.add('hidden'),2400)}
@@ -15,12 +17,12 @@ function put(store,key,val){return new Promise((ok,fail)=>{const tx=db.transacti
 function get(store,key){return new Promise((ok,fail)=>{const r=db.transaction(store).objectStore(store).get(key);r.onsuccess=()=>ok(r.result);r.onerror=()=>fail(r.error)})}
 function getAll(store){return new Promise((ok,fail)=>{const r=db.transaction(store).objectStore(store).getAll();r.onsuccess=()=>ok(r.result);r.onerror=()=>fail(r.error)})}
 function del(store,key){return new Promise((ok,fail)=>{const r=db.transaction(store,'readwrite').objectStore(store).delete(key);r.onsuccess=ok;r.onerror=()=>fail(r.error)})}
-async function persistDraft(){state.updatedAt=new Date().toISOString();await put('draft','current',state)}
+async function persistDraft(){if(!activeModule)return;state.meta.reportType=activeModule;state.movements.forEach(x=>x.reportType=activeModule);state.updatedAt=new Date().toISOString();await put('draft',`current_${activeModule}`,state)}
 function totals(){const spent=state.movements.reduce((a,b)=>a+(+b.amount||0),0),initial=(+state.meta.initialBalance||0)+(+state.meta.secondDeposit||0);return{spent,balance:initial-spent,initial}}
-function isViaticos(){return state.meta.reportType==='viaticos'}
+function isViaticos(){return activeModule==='viaticos'}
 function reportName(){return isViaticos()?'Viáticos':'Caja Menor'}
 function reportSlug(){return isViaticos()?'Viaticos':'Caja_Menor'}
-function updateReportUI(){const name=reportName();if($('#appTitle'))$('#appTitle').textContent=`SIS ${name}`;if($('#reportDataTitle'))$('#reportDataTitle').textContent=`Datos de ${name.toLowerCase()}`;if($('#outputHelp'))$('#outputHelp').textContent=`Genera el Excel oficial de ${name} y un PDF completo con recibos, firmas y soportes escaneados.`;document.title=`SIS ${name} v1.7.0`;const quick=$('#quickAdd');if(quick)quick.textContent='+ Añadir gasto';}
+function updateReportUI(){const name=reportName();if($('#appTitle'))$('#appTitle').textContent=`SIS ${name}`;if($('#reportDataTitle'))$('#reportDataTitle').textContent=`Datos de ${name.toLowerCase()}`;if($('#outputHelp'))$('#outputHelp').textContent=`Genera exclusivamente el Excel oficial y el PDF de ${name}, con sus propios movimientos, recibos, firmas y soportes.`;document.title=`SIS ${name} v1.7.2`;const quick=$('#quickAdd');if(quick)quick.textContent=`+ Añadir gasto de ${name}`;const labels=$$('.metric span');if(labels[0])labels[0].textContent=`Saldo inicial ${name}`;if(labels[1])labels[1].textContent=`Gastado ${name}`;if(labels[2])labels[2].textContent=isViaticos()?'Saldo final Viáticos':'Disponible Caja Menor';if($('#exportExcel'))$('#exportExcel').textContent=`Generar Excel de ${name}`;if($('#exportPdf'))$('#exportPdf').textContent=`Generar PDF de ${name}`;if($('#previewExcel'))$('#previewExcel').textContent=`Vista previa de ${name}`;if($('#historyView h2'))$('#historyView h2').textContent=`Historial de ${name}`;$('#secondDepositWrap')?.classList.toggle('hidden',isViaticos());}
 function normalizeAircraft(value){return String(value||'').toUpperCase().replace(/[^A-Z0-9-]/g,'').replace(/^HK-?/, 'HK')}
 function formatPeriod(start,end){if(!start||!end)return '';const a=new Date(`${start}T00:00:00`),b=new Date(`${end}T00:00:00`);if(Number.isNaN(a)||Number.isNaN(b))return '';const months=['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];if(a.getFullYear()===b.getFullYear()&&a.getMonth()===b.getMonth())return `DEL ${String(a.getDate()).padStart(2,'0')} AL ${String(b.getDate()).padStart(2,'0')} DE ${months[a.getMonth()]} DE ${a.getFullYear()}`;return `DEL ${fmtDate(start)} AL ${fmtDate(end)}`}
 function dateInPeriod(date){
@@ -32,7 +34,7 @@ function dateInPeriod(date){
 function refreshMetaFromVisibleForm(){
   const aircraft=selectedAircraft();
   if(aircraft)state.meta.aircraft=aircraft;
-  for(const id of ['reportType','placeDate','startDate','endDate','responsible','area','position','cardNumber','observations']){
+  for(const id of ['placeDate','startDate','endDate','responsible','area','position','cardNumber','observations']){
     const el=$('#'+id);if(el)state.meta[id]=el.value;
   }
   for(const id of ['initialBalance','secondDeposit']){
@@ -63,7 +65,7 @@ function downloadBlob(blob,filename){
   setTimeout(()=>URL.revokeObjectURL(url),1500);
 }
 
-function migrateState(){state.meta=state.meta||{};for(const [k,v] of Object.entries({reportType:'caja',placeDate:'',period:'',startDate:'',endDate:'',responsible:'ANDRES GUTIERREZ BECERRA',area:'OPERACIONES',position:'COPILOTO',aircraft:'HK4900',customAircraft:'',cardNumber:'',initialBalance:1000000,secondDeposit:0,observations:''}))if(state.meta[k]===undefined)state.meta[k]=v;state.meta.aircraft=normalizeAircraft(state.meta.aircraft)||'HK4900';state.movements=state.movements||[]}
+function migrateState(){const module=activeModule||state.meta?.reportType||'caja';state.meta=state.meta||{};for(const [k,v] of Object.entries(defaultState(module).meta))if(state.meta[k]===undefined)state.meta[k]=v;state.meta.reportType=module;state.meta.aircraft=normalizeAircraft(state.meta.aircraft)||'HK4900';state.movements=(state.movements||[]).filter(x=>!x.reportType||x.reportType===module).map(x=>({...x,reportType:module}))}
 function selectedAircraft(){const sel=$('#aircraft');if(!sel)return state.meta.aircraft;return sel.value==='OTHER'?normalizeAircraft($('#customAircraft').value):normalizeAircraft(sel.value)}
 function updatePeriodUI(){const period=formatPeriod($('#startDate')?.value,$('#endDate')?.value);if($('#period'))$('#period').value=period;if($('#periodDisplay'))$('#periodDisplay').textContent=period||'Sin periodo definido';return period}
 function syncMetaToForm(){migrateState();const known=['HK3779','HK4692','HK5334','HK3882','HK3911','HK4900'];const aircraft=normalizeAircraft(state.meta.aircraft);if($('#aircraft'))$('#aircraft').value=known.includes(aircraft)?aircraft:'OTHER';if($('#customAircraft'))$('#customAircraft').value=known.includes(aircraft)?'':aircraft;$('#customAircraftWrap')?.classList.toggle('hidden',known.includes(aircraft));Object.keys(state.meta).forEach(k=>{if(k==='aircraft'||k==='customAircraft')return;const el=$('#'+k);if(el)el.value=state.meta[k]??''});if(!state.meta.period)state.meta.period=formatPeriod(state.meta.startDate,state.meta.endDate);updatePeriodUI();updateReportUI();$('#boxTitle').textContent=`${reportName()} · ${state.meta.aircraft||'Sin aeronave'} · ${state.meta.period||'Informe actual'}`}
@@ -117,7 +119,7 @@ async function imageCompressed(file){const src=await fileToDataURL(file);return 
 async function pdfPages(file){const data=await file.arrayBuffer(),pdf=await pdfjsLib.getDocument({data}).promise,pages=[];for(let i=1;i<=pdf.numPages;i++){const p=await pdf.getPage(i),vp=p.getViewport({scale:1.7}),c=document.createElement('canvas');c.width=vp.width;c.height=vp.height;await p.render({canvasContext:c.getContext('2d'),viewport:vp}).promise;pages.push(c.toDataURL('image/jpeg',.82))}return pages}
 $('#eFiles').onchange=async e=>{for(const f of [...e.target.files]){toast(`Procesando ${f.name}`);const pages=f.type==='application/pdf'?await pdfPages(f):[await imageCompressed(f)];tempAttachments.push({name:f.name,type:f.type,pages})}renderAttachmentPreview();e.target.value=''};
 function renderAttachmentPreview(){const box=$('#attachmentPreview');box.innerHTML='';tempAttachments.forEach((a,i)=>{const d=document.createElement('div');d.className='attachment-card';d.innerHTML=`<img src="${a.pages[0]}"><small>${safe(a.name)}${a.pages.length>1?` (${a.pages.length})`:''}</small><button class="danger">Quitar</button>`;d.querySelector('button').onclick=()=>{tempAttachments.splice(i,1);renderAttachmentPreview()};box.appendChild(d)})}
-$('#saveExpense').onclick=async()=>{const x={id:editingId||uid(),date:$('#eDate').value,city:$('#eCity').value.trim(),support:$('#eSupport').value,category:$('#eCategory').value,detail:$('#eDetail').value.trim(),thirdParty:$('#eThirdParty').value.trim(),idType:$('#eIdType').value,idNumber:$('#eIdNumber').value.trim(),amount:+$('#eAmount').value||0,attachments:tempAttachments,signature:$('#eSupport').value==='Recibo de Caja'?tempSignature:null,createdAt:editingId?(state.movements.find(m=>m.id===editingId)?.createdAt||new Date().toISOString()):new Date().toISOString()};if(!x.date||!x.city||!x.detail||!x.amount)return alert('Complete fecha, ciudad, detalle y valor.');const isTaxi=x.category==='Transporte'&&/^taxi\b/i.test(x.detail);if(isTaxi&&(!x.thirdParty||!x.idNumber))return alert('Para gastos de taxi debe registrar el nombre del conductor y su número de cédula.');if(x.support==='Recibo de Caja'&&(!x.thirdParty||!x.idNumber))return alert('Todo recibo de caja debe incluir el nombre del beneficiario y su número de identificación.');if(!dateInPeriod(x.date)&&!confirm(`La fecha ${fmtDate(x.date)} está fuera del periodo ${state.meta.period||'definido'}. ¿Guardar de todas formas?`))return;if(editingId)state.movements=state.movements.map(m=>m.id===editingId?x:m);else state.movements.push(x);await persistDraft();$('#expenseModal').classList.add('hidden');render();toast('Gasto guardado')};
+$('#saveExpense').onclick=async()=>{const x={id:editingId||uid(),date:$('#eDate').value,city:$('#eCity').value.trim(),support:$('#eSupport').value,category:$('#eCategory').value,detail:$('#eDetail').value.trim(),thirdParty:$('#eThirdParty').value.trim(),idType:$('#eIdType').value,idNumber:$('#eIdNumber').value.trim(),amount:+$('#eAmount').value||0,attachments:tempAttachments,signature:$('#eSupport').value==='Recibo de Caja'?tempSignature:null,createdAt:editingId?(state.movements.find(m=>m.id===editingId)?.createdAt||new Date().toISOString()):new Date().toISOString(),reportType:activeModule};if(!x.date||!x.city||!x.detail||!x.amount)return alert('Complete fecha, ciudad, detalle y valor.');const isTaxi=x.category==='Transporte'&&/^taxi\b/i.test(x.detail);if(isTaxi&&(!x.thirdParty||!x.idNumber))return alert('Para gastos de taxi debe registrar el nombre del conductor y su número de cédula.');if(x.support==='Recibo de Caja'&&(!x.thirdParty||!x.idNumber))return alert('Todo recibo de caja debe incluir el nombre del beneficiario y su número de identificación.');if(!dateInPeriod(x.date)&&!confirm(`La fecha ${fmtDate(x.date)} está fuera del periodo ${state.meta.period||'definido'}. ¿Guardar de todas formas?`))return;if(editingId)state.movements=state.movements.map(m=>m.id===editingId?x:m);else state.movements.push(x);await persistDraft();$('#expenseModal').classList.add('hidden');render();toast('Gasto guardado')};
 
 // Firma táctil por recibo
 const sig=$('#signatureCanvas'),ctx=sig.getContext('2d');let drawing=false,last=null;
@@ -128,8 +130,8 @@ function start(e){e.preventDefault();drawing=true;last=pt(e)}function move(e){if
 $('#signReceipt').onclick=()=>{if($('#eSupport').value!=='Recibo de Caja')return alert('La firma se usa únicamente para Recibo de Caja.');$('#signatureModal').classList.remove('hidden');requestAnimationFrame(resizeSig)};$('#closeSignature').onclick=()=>$('#signatureModal').classList.add('hidden');$('#clearSignature').onclick=()=>{tempSignature=null;resizeSig()};$('#confirmSignature').onclick=()=>{tempSignature=sig.toDataURL('image/png');$('#signatureModal').classList.add('hidden');renderSignatureStatus();toast('Firma guardada')};
 
 $('#saveBox').onclick=()=>{syncMetaFromForm();toast('Datos guardados')};
-$('#newBox').onclick=async()=>{if(!confirm('¿Iniciar un informe nuevo? El informe actual debe guardarse en historial si desea conservarlo.'))return;currentId=null;state={meta:{reportType:'caja',placeDate:'',period:'',startDate:'',endDate:'',responsible:'ANDRES GUTIERREZ BECERRA',area:'OPERACIONES',position:'COPILOTO',aircraft:'HK4900',customAircraft:'',cardNumber:'',initialBalance:1000000,secondDeposit:0,observations:''},movements:[],updatedAt:new Date().toISOString()};syncMetaToForm();await persistDraft();render();showView('homeView')};
-async function archiveCurrent(){syncMetaFromForm();const id=currentId||uid(),payload={...structuredClone(state),id};currentId=id;await put('boxes',null,payload);toast(`${reportName()} guardado en historial`);return payload}
+$('#newBox').onclick=async()=>{if(!confirm(`¿Iniciar un informe nuevo de ${reportName()}? El informe actual debe guardarse en historial si desea conservarlo.`))return;currentId=null;state=defaultState(activeModule);syncMetaToForm();await persistDraft();render();showView('homeView')};
+async function archiveCurrent(){syncMetaFromForm();const id=currentId||uid(),payload={...structuredClone(state),id,module:activeModule};currentId=id;await put('boxes',null,payload);toast(`${reportName()} guardado en historial`);return payload}
 
 // Excel oficial basado en la plantilla entregada
 function excelSerial(s){const d=new Date(`${s}T00:00:00`);return (d-Date.UTC(1899,11,30))/86400000}
@@ -149,14 +151,14 @@ $('#exportExcel').onclick=async()=>{
       for(let r=19;r<=48;r++)for(const c of ['C','D','E','F','G','H','I','K'])ws.getCell(`${c}${r}`).value=null;
       all.slice(0,30).forEach((x,i)=>{const r=19+i;ws.getCell(`C${r}`).value=new Date(`${x.date}T00:00:00`);ws.getCell(`C${r}`).numFmt='dd/mm/yy';ws.getCell(`D${r}`).value=x.city;ws.getCell(`E${r}`).value=x.support;ws.getCell(`F${r}`).value=x.thirdParty;ws.getCell(`G${r}`).value=x.idType;ws.getCell(`H${r}`).value=x.idNumber;ws.getCell(`I${r}`).value=x.category;ws.getCell(`K${r}`).value=x.amount});
       ws.getCell('K49').value=t.spent;ws.getCell('C52').value=m.observations||'';
-      ws.pageSetup={...ws.pageSetup,orientation:'landscape',paperSize:9,fitToPage:true,fitToWidth:1,fitToHeight:0};
+      
     }else{
       const ws=wb.worksheets.find(sheet=>sheet.name.trim()==='Caja Menor');if(!ws)throw new Error('La plantilla no contiene la hoja “Caja Menor”.');
       ws.getCell('D5').value=m.placeDate;ws.getCell('D7').value=m.period;ws.getCell('I5').value=m.responsible;ws.getCell('I6').value=m.area;ws.getCell('I7').value=m.position;ws.getCell('I8').value=m.aircraft;ws.getCell('D10').value=m.cardNumber;ws.getCell('D11').value=+m.initialBalance||0;ws.getCell('D12').value=+m.secondDeposit||0;ws.getCell('D13').value=t.spent;ws.getCell('D14').value=t.balance;
       for(let r=20;r<=62;r++)for(const c of ['C','D','E','F','G','H','I','K'])ws.getCell(`${c}${r}`).value=null;
       all.slice(0,43).forEach((x,i)=>{const r=20+i;ws.getCell(`C${r}`).value=new Date(`${x.date}T00:00:00`);ws.getCell(`C${r}`).numFmt='dd/mm/yy';ws.getCell(`D${r}`).value=x.city;ws.getCell(`E${r}`).value=x.support;ws.getCell(`F${r}`).value=x.thirdParty;ws.getCell(`G${r}`).value=x.idType;ws.getCell(`H${r}`).value=x.idNumber;ws.getCell(`I${r}`).value=x.category;ws.getCell(`K${r}`).value=x.amount});
       ws.getCell('K63').value=t.spent;ws.getCell('C65').value='OBSERVACIONES:';ws.getCell('D65').value=m.observations;
-      ws.pageSetup={...ws.pageSetup,orientation:'landscape',paperSize:9,fitToPage:true,fitToWidth:1,fitToHeight:0};
+      
     }
     const out=await wb.xlsx.writeBuffer();downloadBlob(new Blob([out],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),`SIS_${reportSlug()}_${m.aircraft||'SCOF01'}_${today()}.xlsx`);
     await archiveCurrent();toast(`Excel de ${reportName()} generado correctamente`);
@@ -169,16 +171,32 @@ function words(n){const u=['','UNO','DOS','TRES','CUATRO','CINCO','SEIS','SIETE'
 function pageSize(doc){return{w:doc.internal.pageSize.getWidth(),h:doc.internal.pageSize.getHeight()}}
 function addHeader(doc,title,logo,page){const {w}=pageSize(doc);if(logo)doc.addImage(logo,'PNG',12,8,32,10);doc.setFont('helvetica','bold');doc.setTextColor(15,39,66);doc.setFontSize(12);doc.text(title,w/2,14,{align:'center'});doc.setFontSize(7);doc.text(`SIS SOLUCIONES INTEGRALES · ${state.meta.aircraft||''} · Página ${page}`,w-12,14,{align:'right'});doc.setDrawColor(15,39,66);doc.line(12,20,w-12,20);doc.setTextColor(0)}
 function fit(doc,text,x,y,w,max=2,size=7,style='normal'){doc.setFont('helvetica',style);doc.setFontSize(size);const lines=doc.splitTextToSize(String(text||''),w).slice(0,max);doc.text(lines,x,y)}
-function drawScof(doc,all,logo){
-  addHeader(doc,`${reportName().toUpperCase()} - SCOF01`,logo,1);const {w,h}=pageSize(doc);const m=state.meta,t=totals();
-  doc.setFontSize(7.5);const left=[['LUGAR Y FECHA',m.placeDate],['PERIODO',m.period],['TARJETA PEOPLE PASS',m.cardNumber],['SALDO INICIAL',money(m.initialBalance)],['2DO DEPÓSITO',money(m.secondDeposit)],[isViaticos()?'GASTOS VIÁTICOS':'GASTOS CAJA MENOR',money(t.spent)],['SALDO FINAL',money(t.balance)]],right=[['NOMBRE RESPONSABLE',m.responsible],['ÁREA',m.area],['CARGO',m.position],['AERONAVE',m.aircraft]];
-  let y=27;left.forEach((r,i)=>{doc.setFont('helvetica','bold');doc.text(r[0],12,y+i*6);doc.setFont('helvetica','normal');doc.text(String(r[1]||''),52,y+i*6)});right.forEach((r,i)=>{doc.setFont('helvetica','bold');doc.text(r[0],160,y+i*6);doc.setFont('helvetica','normal');doc.text(String(r[1]||''),207,y+i*6)});
-  const x0=12, tableW=w-24, widths=[22,30,34,49,24,34,60,tableW-253], xs=[x0];for(const cw of widths)xs.push(xs[xs.length-1]+cw);const heads=['FECHA','CIUDAD','SOPORTE','TERCERO','TIPO ID','NÚMERO ID','CONCEPTO','TOTAL'];y=72;doc.setFillColor(225,232,238);doc.rect(x0,y,tableW,8,'F');
-  for(let i=0;i<heads.length;i++){doc.rect(xs[i],y,widths[i],8);doc.setFont('helvetica','bold');doc.setFontSize(5.8);doc.text(heads[i],xs[i]+widths[i]/2,y+5,{align:'center'})}y+=8;const rowH=6,maxRows=18;doc.setFont('helvetica','normal');
-  for(const x of all.slice(0,maxRows)){const vals=[fmtDate(x.date),x.city,x.support,x.thirdParty,x.idType,x.idNumber,x.category,money(x.amount)];for(let i=0;i<vals.length;i++){doc.rect(xs[i],y,widths[i],rowH);fit(doc,vals[i],xs[i]+1,y+4,widths[i]-2,1,5.1,i===7?'bold':'normal')}y+=rowH}
-  while(y<80+maxRows*rowH){for(let i=0;i<heads.length;i++)doc.rect(xs[i],y,widths[i],rowH);y+=rowH}
-  const footerY=h-31;doc.setFont('helvetica','bold');doc.setFontSize(7);doc.text('TOTAL',w-58,footerY+5);doc.rect(w-50,footerY,38,7);doc.text(money(t.spent),w-13,footerY+5,{align:'right'});doc.text('OBSERVACIONES:',12,footerY+14);doc.setFont('helvetica','normal');fit(doc,m.observations,48,footerY+14,w-165,2,6);doc.rect(12,footerY+9,w-24,14);doc.setFont('helvetica','bold');doc.text('FIRMA / Vo.Bo. / APROBADA',w-62,footerY+17,{align:'center'});doc.rect(w-112,footerY+9,100,14)
+function imageData(url){return new Promise((ok,fail)=>{const im=new Image();im.onload=()=>{const c=document.createElement('canvas');c.width=im.naturalWidth;c.height=im.naturalHeight;c.getContext('2d').drawImage(im,0,0);ok(c.toDataURL('image/png'))};im.onerror=()=>fail(new Error('No se pudo cargar el formato oficial: '+url));im.src=url})}
+function createLandscapePdf(){const {jsPDF}=window.jspdf;return new jsPDF('landscape','mm','a4',true)}
+async function drawScof(doc,all,logo){
+  const bg=await imageData(isViaticos()?'assets/formato_VIATICOS_oficial.png':'assets/formato_SCOF01_oficial.png');
+  const {w,h}=pageSize(doc),m=state.meta,t=totals();
+  doc.addImage(bg,'PNG',0,0,w,h,undefined,'FAST');
+  doc.setTextColor(0);doc.setFont('helvetica','normal');
+  if(isViaticos()){
+    // Coordenadas sobre el formato oficial SCOF01 de Viáticos. No se alteran líneas, títulos ni estructura.
+    fit(doc,m.placeDate,70,39,62,1,5.8);fit(doc,m.period,70,44.7,62,1,5.8);
+    fit(doc,m.responsible,222,39,57,1,5.6);fit(doc,m.area,222,43.2,57,1,5.6);fit(doc,m.position,222,47.3,57,1,5.6);
+    fit(doc,m.cardNumber,84,56.0,30,1,6,'bold');fit(doc,money(m.initialBalance),84,61.3,30,1,6,'bold');fit(doc,money(t.spent),84,66.5,30,1,6,'bold');fit(doc,money(t.balance),84,71.8,30,1,6,'bold');
+    const cols=[46,89,117,146,173,199,224,260], widths=[39,26,25,27,24,23,36,24], y0=84.7,row=4.32;
+    all.slice(0,30).forEach((x,i)=>{const y=y0+i*row;const vals=[fmtDate(x.date),x.city,x.support,x.thirdParty,x.idType,x.idNumber,x.category,new Intl.NumberFormat('es-CO').format(x.amount)];vals.forEach((v,j)=>fit(doc,v,cols[j],y,widths[j],1,j===7?4.8:4.3,j===7?'bold':'normal'))});
+    doc.setFont('helvetica','bold');doc.setFontSize(5.3);doc.text(new Intl.NumberFormat('es-CO').format(t.spent),282,174.7,{align:'right'});fit(doc,m.observations,47,182.5,228,3,5.2);
+  }else{
+    // Coordenadas sobre el formato oficial SCOF01 de Caja Menor. No se redibuja ni se simplifica el formato.
+    fit(doc,m.placeDate,46,40.2,66,1,5.6);fit(doc,m.period,46,45.2,66,1,5.6);
+    fit(doc,m.responsible,191,40.2,49,1,5.4);fit(doc,m.area,191,43.8,49,1,5.4);fit(doc,m.position,191,47.4,49,1,5.4);fit(doc,m.aircraft,191,51.0,49,1,5.4);
+    fit(doc,m.cardNumber,65,56.1,27,1,5.7,'bold');fit(doc,money(m.initialBalance),65,59.8,27,1,5.7,'bold');fit(doc,money(m.secondDeposit),65,63.5,27,1,5.7,'bold');fit(doc,money(t.spent),65,67.2,27,1,5.7,'bold');fit(doc,money(t.balance),65,70.9,27,1,5.7,'bold');
+    const cols=[38,68,96,126,155,179,207,250], widths=[25,27,28,29,21,26,40,22], y0=81.9,row=3.62;
+    all.slice(0,43).forEach((x,i)=>{const y=y0+i*row;const vals=[fmtDate(x.date),x.city,x.support,x.thirdParty,x.idType,x.idNumber,x.category,new Intl.NumberFormat('es-CO').format(x.amount)];vals.forEach((v,j)=>fit(doc,v,cols[j],y,widths[j],1,j===7?4.45:4.05,j===7?'bold':'normal'))});
+    doc.setFont('helvetica','bold');doc.setFontSize(5.1);doc.text(new Intl.NumberFormat('es-CO').format(t.spent),282,177.6,{align:'right'});fit(doc,m.observations,29,183.2,230,3,5.0);
+  }
 }
+
 function drawReceipt(doc,x,y,w,h,item,num,logo){
   const green=[42,145,38],pale=[242,247,239],line=[120,112,58];doc.setDrawColor(...line);doc.setLineWidth(.35);doc.roundedRect(x,y,w,h,2,2);
   if(logo)doc.addImage(logo,'PNG',x+4,y+3,31,10);doc.setFillColor(...green);doc.roundedRect(x+w-58,y+2,55,18,1.8,1.8,'F');doc.setTextColor(255);doc.setFont('helvetica','bold');doc.setFontSize(10.5);doc.text('RECIBO DE',x+w-30.5,y+9,{align:'center'});doc.text('CAJA MENOR',x+w-30.5,y+15,{align:'center'});doc.setTextColor(0);
@@ -217,22 +235,23 @@ $('#receiptEdit').onclick=()=>{const id=previewReceiptId;$('#receiptModal').clas
 $('#receiptDownload').onclick=async()=>{
   const item=state.movements.find(x=>x.id===previewReceiptId);if(!item)return;
   if(!item.signature&&!confirm('Este recibo todavía no tiene firma. ¿Descargar de todas formas?'))return;
-  if(!window.jspdf?.jsPDF)throw new Error('No se cargó el generador de PDF. Verifique la conexión a internet y vuelva a abrir la aplicación.');const {jsPDF}=window.jspdf,doc=new jsPDF({orientation:'landscape',unit:'mm',format:'a4',compress:true}),logo=await logoData();
+  if(!window.jspdf?.jsPDF)throw new Error('No se cargó el generador de PDF. Verifique la conexión a internet y vuelva a abrir la aplicación.');const doc=createLandscapePdf(),logo=await logoData();
   addHeader(doc,'RECIBO DE CAJA MENOR',logo,1);drawReceipt(doc,18,30,261,153,item,receiptNumber(item),logo);
   doc.save(`Recibo_RC-${String(receiptNumber(item)).padStart(3,'0')}_${item.thirdParty||'SIS'}_${item.date}.pdf`);
 };
 
 async function imgDim(src){return new Promise(ok=>{const im=new Image();im.onload=()=>ok({w:im.width,h:im.height});im.src=src})}
-$('#exportPdf').onclick=async()=>{const button=$('#exportPdf');setButtonBusy(button,true,'Generando PDF…');try{const validation=validateCommission({requireDates:true,requireMovements:true});if(validation)return alert(validation);const missing=state.movements.filter(x=>(x.support==='Recibo de Caja'&&!x.signature)||(!x.attachments?.length&&x.support!=='Recibo de Caja'));if(missing.length&&!confirm(`Hay ${missing.length} movimiento(s) con firma o soporte pendiente. ¿Generar de todas formas?`))return;if(!window.jspdf?.jsPDF)throw new Error('No se cargó el generador de PDF. Verifique la conexión a internet y vuelva a abrir la aplicación.');const {jsPDF}=window.jspdf,doc=new jsPDF({orientation:'landscape',unit:'mm',format:'a4',compress:true}),logo=await logoData(),all=[...state.movements].sort((a,b)=>(a.date+a.createdAt).localeCompare(b.date+b.createdAt));drawScof(doc,all,logo);let page=1,receipts=all.filter(x=>x.support==='Recibo de Caja');for(let i=0;i<receipts.length;i+=2){doc.addPage('a4','landscape');addHeader(doc,'RECIBOS DE CAJA MENOR',logo,++page);const group=receipts.slice(i,i+2);for(let j=0;j<group.length;j++){drawReceipt(doc,18,28+j*87,261,82,group[j],i+j+1,logo)}}for(const [idx,x] of all.entries()){for(const a of x.attachments||[]){for(let p=0;p<a.pages.length;p++){const dim=await imgDim(a.pages[p]),landscape=dim.w>=dim.h;doc.addPage('a4',landscape?'landscape':'portrait');addHeader(doc,`SOPORTE ${idx+1} - ${x.support.toUpperCase()}`,logo,++page);const ps=pageSize(doc),maxW=ps.w-24,maxH=ps.h-43;doc.setFont('helvetica','bold');fit(doc,`${fmtDate(x.date)} | ${x.thirdParty||''} | ${x.detail||x.category} | ${money(x.amount)} | ${a.name}${a.pages.length>1?` - Página ${p+1}/${a.pages.length}`:''}`,12,28,maxW,2,7,'bold');const ratio=Math.min(maxW/dim.w,maxH/dim.h),iw=dim.w*ratio,ih=dim.h*ratio;doc.addImage(a.pages[p],'JPEG',ps.w/2-iw/2,35,iw,ih,undefined,'FAST')}}}doc.save(`SIS_${reportSlug()}_${state.meta.aircraft||'SCOF01'}_${today()}.pdf`);await archiveCurrent();toast(`PDF de ${reportName()} generado correctamente`)}catch(e){console.error(e);alert('No fue posible generar el PDF: '+e.message)}finally{setButtonBusy(button,false)}};
+$('#exportPdf').onclick=async()=>{const button=$('#exportPdf');setButtonBusy(button,true,'Generando PDF…');try{const validation=validateCommission({requireDates:true,requireMovements:true});if(validation)return alert(validation);const missing=state.movements.filter(x=>(x.support==='Recibo de Caja'&&!x.signature)||(!x.attachments?.length&&x.support!=='Recibo de Caja'));if(missing.length&&!confirm(`Hay ${missing.length} movimiento(s) con firma o soporte pendiente. ¿Generar de todas formas?`))return;if(!window.jspdf?.jsPDF)throw new Error('No se cargó el generador de PDF. Verifique la conexión a internet y vuelva a abrir la aplicación.');const doc=createLandscapePdf(),logo=await logoData(),all=[...state.movements].sort((a,b)=>(a.date+a.createdAt).localeCompare(b.date+b.createdAt));await drawScof(doc,all,logo);let page=1,receipts=all.filter(x=>x.support==='Recibo de Caja');for(let i=0;i<receipts.length;i+=2){doc.addPage('a4','landscape');addHeader(doc,'RECIBOS DE CAJA MENOR',logo,++page);const group=receipts.slice(i,i+2);for(let j=0;j<group.length;j++){drawReceipt(doc,18,28+j*87,261,82,group[j],i+j+1,logo)}}for(const [idx,x] of all.entries()){for(const a of x.attachments||[]){for(let p=0;p<a.pages.length;p++){const dim=await imgDim(a.pages[p]);doc.addPage('a4','landscape');addHeader(doc,`SOPORTE ${idx+1} - ${x.support.toUpperCase()}`,logo,++page);const ps=pageSize(doc),maxW=ps.w-24,maxH=ps.h-43;doc.setFont('helvetica','bold');fit(doc,`${fmtDate(x.date)} | ${x.thirdParty||''} | ${x.detail||x.category} | ${money(x.amount)} | ${a.name}${a.pages.length>1?` - Página ${p+1}/${a.pages.length}`:''}`,12,28,maxW,2,7,'bold');const ratio=Math.min(maxW/dim.w,maxH/dim.h),iw=dim.w*ratio,ih=dim.h*ratio;doc.addImage(a.pages[p],'JPEG',ps.w/2-iw/2,35,iw,ih,undefined,'FAST')}}}doc.save(`SIS_${reportSlug()}_${state.meta.aircraft||'SCOF01'}_${today()}.pdf`);await archiveCurrent();toast(`PDF de ${reportName()} generado correctamente`)}catch(e){console.error(e);alert('No fue posible generar el PDF: '+e.message)}finally{setButtonBusy(button,false)}};
 
-async function renderHistory(){const box=$('#historyList'),items=(await getAll('boxes')).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt));box.innerHTML=items.length?'':'<p class="muted">No hay informes guardados.</p>';for(const p of items){const spent=p.movements.reduce((s,x)=>s+(+x.amount||0),0),d=document.createElement('div');d.className='history-item';d.innerHTML=`<strong>${safe((p.meta.reportType==='viaticos'?'Viáticos':'Caja Menor'))} · ${safe(p.meta.aircraft||'Sin aeronave')} · ${safe(p.meta.period||'Sin periodo')}</strong><small>${p.movements.length} movimientos · ${money(spent)} · ${new Date(p.updatedAt).toLocaleString('es-CO')}</small><div class="button-row"><button data-open>Abrir</button><button data-copy>Duplicar</button><button data-del class="danger">Eliminar</button></div>`;d.querySelector('[data-open]').onclick=async()=>{state=structuredClone(p);currentId=p.id;delete state.id;syncMetaToForm();await persistDraft();render();showView('homeView')};d.querySelector('[data-copy]').onclick=async()=>{state=structuredClone(p);delete state.id;currentId=null;state.meta.period='';state.meta.startDate='';state.meta.endDate='';state.movements=state.movements.map(x=>({...x,id:uid(),signature:null}));syncMetaToForm();await persistDraft();render();showView('homeView');toast('Informe duplicado')};d.querySelector('[data-del]').onclick=async()=>{if(confirm('¿Eliminar este informe?')){await del('boxes',p.id);renderHistory()}};box.appendChild(d)}}
+async function renderHistory(){const box=$('#historyList'),items=(await getAll('boxes')).filter(p=>(p.module||p.meta?.reportType||'caja')===activeModule).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt));box.innerHTML=items.length?'':`<p class="muted">No hay informes de ${reportName()} guardados.</p>`;for(const p of items){const spent=p.movements.reduce((sum,x)=>sum+(+x.amount||0),0),d=document.createElement('div');d.className='history-item';d.innerHTML=`<strong>${safe(reportName())} · ${safe(p.meta.aircraft||'Sin aeronave')} · ${safe(p.meta.period||'Sin periodo')}</strong><small>${p.movements.length} movimientos · ${money(spent)} · ${new Date(p.updatedAt).toLocaleString('es-CO')}</small><div class="button-row"><button data-open>Abrir</button><button data-copy>Duplicar</button><button data-del class="danger">Eliminar</button></div>`;d.querySelector('[data-open]').onclick=async()=>{state=structuredClone(p);currentId=p.id;delete state.id;delete state.module;migrateState();syncMetaToForm();await persistDraft();render();showView('homeView')};d.querySelector('[data-copy]').onclick=async()=>{state=structuredClone(p);delete state.id;delete state.module;currentId=null;state.meta.period='';state.meta.startDate='';state.meta.endDate='';state.movements=state.movements.map(x=>({...x,id:uid(),signature:null,reportType:activeModule}));syncMetaToForm();await persistDraft();render();showView('homeView');toast(`Informe de ${reportName()} duplicado`)};d.querySelector('[data-del]').onclick=async()=>{if(confirm(`¿Eliminar este informe de ${reportName()}?`)){await del('boxes',p.id);renderHistory()}};box.appendChild(d)}}
 $('#refreshHistory').onclick=renderHistory;$('#filter').onchange=renderMovements;
 $('#backup').onclick=async()=>{
   const button=$('#backup');setButtonBusy(button,true,'Creando copia…');
   try{
     refreshMetaFromVisibleForm();await persistDraft();
-    const payload={format:'SIS_GASTOS_BACKUP',version:2,createdAt:new Date().toISOString(),draft:state,history:await getAll('boxes')};
-    downloadBlob(new Blob([JSON.stringify(payload,null,2)],{type:'application/json'}),`SIS_Gastos_respaldo_${today()}.json`);toast('Copia de seguridad creada');
+    const history=(await getAll('boxes')).filter(p=>(p.module||p.meta?.reportType||'caja')===activeModule);
+    const payload={format:'SIS_GASTOS_BACKUP',version:3,module:activeModule,createdAt:new Date().toISOString(),draft:state,history};
+    downloadBlob(new Blob([JSON.stringify(payload,null,2)],{type:'application/json'}),`SIS_${reportSlug()}_respaldo_${today()}.json`);toast(`Copia de seguridad de ${reportName()} creada`);
   }catch(err){console.error(err);alert('No fue posible crear la copia de seguridad: '+err.message)}
   finally{setButtonBusy(button,false)}
 };
@@ -241,6 +260,7 @@ $('#restore').onchange=async e=>{
   try{
     const p=JSON.parse(await file.text());
     if(!p||typeof p!=='object'||(!p.draft&&!Array.isArray(p.history)))throw new Error('El archivo no corresponde a una copia de SIS Gastos.');
+    const backupModule=p.module||p.draft?.meta?.reportType||'caja';if(backupModule!==activeModule)throw new Error(`Esta copia corresponde a ${backupModule==='viaticos'?'Viáticos':'Caja Menor'}. Cambie de módulo antes de restaurarla.`);
     if(p.draft){state=structuredClone(p.draft);migrateState();await persistDraft()}
     for(const b of p.history||[]){if(b&&b.id&&b.meta&&Array.isArray(b.movements))await put('boxes',null,b)}
     syncMetaToForm();render();toast('Copia restaurada correctamente');
@@ -248,7 +268,6 @@ $('#restore').onchange=async e=>{
   finally{input.value=''}
 };
 
-$('#reportType').onchange=()=>{syncMetaFromForm();updateReportUI();render()};
 $('#aircraft').onchange=()=>{const other=$('#aircraft').value==='OTHER';$('#customAircraftWrap').classList.toggle('hidden',!other);if(other)setTimeout(()=>$('#customAircraft').focus(),50);syncMetaFromForm()};
 $('#customAircraft').oninput=()=>{state.meta.aircraft=selectedAircraft();render()};
 $('#startDate').onchange=()=>{updatePeriodUI();syncMetaFromForm()};
@@ -258,7 +277,12 @@ $('#previewExcel').onclick=showExcelPreview;$('#closeExcelPreview').onclick=()=>
 
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredPrompt=e;$('#installBtn').classList.remove('hidden')});$('#installBtn').onclick=async()=>{if(deferredPrompt){deferredPrompt.prompt();await deferredPrompt.userChoice;deferredPrompt=null;$('#installBtn').classList.add('hidden')}else alert('En iPhone: abra Compartir y pulse “Añadir a pantalla de inicio”.')};
 if('serviceWorker' in navigator)navigator.serviceWorker.register('./service-worker.js').catch(()=>{});
-openDB().then(async()=>{const d=await get('draft','current');if(d)state=d;migrateState();syncMetaToForm();render()}).catch(e=>alert('No se pudo iniciar el almacenamiento local: '+e.message));
+async function loadModule(module){activeModule=module;localStorage.setItem('sisActiveModule',module);currentId=null;const key=`current_${module}`;let d=await get('draft',key);if(!d&&module==='caja'){const legacy=await get('draft','current');if(legacy){d=legacy;d.meta=d.meta||{};d.meta.reportType='caja';d.movements=(d.movements||[]).map(x=>({...x,reportType:'caja'}));await put('draft',key,d)}}state=d?structuredClone(d):defaultState(module);migrateState();$('#moduleChooser').classList.add('hidden');$('#appShell').classList.remove('hidden');syncMetaToForm();render();showView('homeView');await persistDraft()}
+function showModuleChooser(){if(activeModule)persistDraft();$('#appShell').classList.add('hidden');$('#moduleChooser').classList.remove('hidden')}
+$('#chooseCaja').onclick=()=>loadModule('caja').catch(e=>alert('No se pudo abrir Caja Menor: '+e.message));
+$('#chooseViaticos').onclick=()=>loadModule('viaticos').catch(e=>alert('No se pudo abrir Viáticos: '+e.message));
+$('#switchModuleBtn').onclick=showModuleChooser;
+openDB().then(()=>showModuleChooser()).catch(e=>alert('No se pudo iniciar el almacenamiento local: '+e.message));
 
 // Administrador de actualizaciones v1.7
 const APP_VERSION='1.7.0';

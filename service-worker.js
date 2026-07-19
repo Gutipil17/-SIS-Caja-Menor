@@ -1,5 +1,5 @@
-const CACHE='sis-gastos-v1.7.0';
-const CORE=['./','./index.html','./styles.css','./app.js','./manifest.webmanifest','./assets/sis-logo.png','./assets/icon-192.png','./assets/icon-512.png','./assets/plantilla_SCOF01.xlsx','./assets/plantilla_VIATICOS.xlsx'];
+const CACHE='sis-gastos-v1.7.2';
+const CORE=['./','./index.html','./styles.css','./app.js','./manifest.webmanifest','./assets/sis-logo.png','./assets/icon-192.png','./assets/icon-512.png','./assets/plantilla_SCOF01.xlsx','./assets/plantilla_VIATICOS.xlsx','./assets/formato_SCOF01_oficial.png','./assets/formato_VIATICOS_oficial.png','./version.json'];
 
 self.addEventListener('install',event=>{
   event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(CORE)));

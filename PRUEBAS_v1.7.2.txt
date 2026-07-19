@@ -1,0 +1,12 @@
+SIS GASTOS v1.7.2 — PRUEBAS DE SEPARACIÓN
+
+1. Sintaxis JavaScript validada con node --check.
+2. Caja Menor usa borrador current_caja y Viáticos usa current_viaticos.
+3. Los movimientos se etiquetan con reportType y se filtran por módulo.
+4. Los saldos se calculan únicamente con los movimientos del módulo activo.
+5. El historial se filtra por módulo.
+6. Las copias de seguridad se generan y restauran por módulo.
+7. Los archivos Excel usan la plantilla oficial correspondiente.
+8. Los PDF se generan con nombre y formato correspondientes al módulo activo.
+9. Los datos antiguos se migran exclusivamente a Caja Menor.
+10. Al abrir la aplicación se exige seleccionar Caja Menor o Viáticos.

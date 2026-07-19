@@ -1,12 +1,7 @@
-SIS GASTOS v1.7.0
+SIS GASTOS v1.7.2
 
-MÓDULOS INCLUIDOS
-- Caja Menor con plantilla oficial SCOF01.
-- Viáticos con plantilla oficial VIATICOS SIS.
-- Registro diario de gastos, recibos, firmas y soportes.
-- Exportación a Excel y PDF horizontal.
-- Historial y copias de seguridad.
-- Administrador de actualizaciones.
+MÓDULOS COMPLETAMENTE INDEPENDIENTES
+- Caja Menor
+- Viáticos
 
-REGLA DE DESARROLLO
-Esta versión conserva las funciones de versiones anteriores y añade el selector de tipo de informe.
+Cada módulo conserva por separado saldos, movimientos, recibos, soportes, historial, Excel, PDF y copias de seguridad. Los datos anteriores se migran a Caja Menor.

@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="SIS Caja Menor">
-  <title>SIS Gastos v1.7.0</title>
+  <title>SIS Gastos v1.7.2</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="assets/icon-192.png">
   <link rel="stylesheet" href="styles.css">
@@ -16,10 +16,23 @@
   <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
 </head>
 <body>
+<section id="moduleChooser" class="module-chooser">
+  <div class="module-card">
+    <img src="assets/sis-logo.png" alt="SIS" class="module-logo">
+    <h1>SIS Gastos</h1>
+    <p>Seleccione el módulo que desea gestionar. Los saldos, movimientos, soportes, historial, Excel y PDF se mantienen completamente separados.</p>
+    <div class="module-buttons">
+      <button id="chooseCaja" class="module-button caja"><strong>CAJA MENOR</strong><small>Gestión independiente de caja menor</small></button>
+      <button id="chooseViaticos" class="module-button viaticos"><strong>VIÁTICOS</strong><small>Gestión independiente de comisiones y viáticos</small></button>
+    </div>
+  </div>
+</section>
+<div id="appShell" class="hidden">
 <header class="topbar">
   <img src="assets/sis-logo.png" alt="SIS" class="logo">
-  <div><h1 id="appTitle">SIS Gastos</h1><p id="boxTitle">Caja actual</p><small class="version">v1.7.0</small></div>
+  <div><h1 id="appTitle">SIS Gastos</h1><p id="boxTitle">Caja actual</p><small class="version">v1.7.2</small></div>
   <div class="topbar-actions">
+    <button id="switchModuleBtn" class="ghost">Cambiar módulo</button>
     <button id="updateBtn" class="ghost">Actualizar</button>
     <button id="installBtn" class="ghost hidden">Instalar</button>
   </div>
@@ -46,7 +59,6 @@
     <div class="card">
       <h2 id="reportDataTitle">Datos del informe</h2>
       <div class="form-grid">
-        <label>Tipo de informe<select id="reportType"><option value="caja">Caja menor</option><option value="viaticos">Viáticos</option></select></label>
         <label>Lugar<input id="placeDate" placeholder="Ej. Bogotá"></label>
         <label>Aeronave<select id="aircraft"><option>HK3779</option><option>HK4692</option><option>HK5334</option><option>HK3882</option><option>HK3911</option><option>HK4900</option><option value="OTHER">Otra aeronave</option></select></label>
         <label id="customAircraftWrap" class="hidden">Otra aeronave<input id="customAircraft" placeholder="Ej. HK1234"></label>
@@ -58,7 +70,7 @@
         <label>Cargo<input id="position"></label>
         <label>Tarjeta People Pass<input id="cardNumber"></label>
         <label>Saldo inicial<input id="initialBalance" inputmode="numeric" type="number" step="1000"></label>
-        <label>Segundo depósito<input id="secondDeposit" inputmode="numeric" type="number" step="1000"></label>
+        <label id="secondDepositWrap">Segundo depósito<input id="secondDeposit" inputmode="numeric" type="number" step="1000"></label>
         <label class="wide">Observaciones<textarea id="observations" rows="3"></textarea></label>
       </div>
       <div class="button-row"><button id="saveBox" class="primary">Guardar datos</button><button id="newBox" class="danger">Nuevo informe</button></div>
@@ -69,10 +81,10 @@
       <div class="button-stack"><button id="previewExcel">Vista previa del Excel</button><button id="exportExcel">Generar Excel oficial</button><button id="exportPdf" class="primary">Generar PDF completo</button><button id="backup">Crear copia de seguridad</button><label class="file-btn">Restaurar copia<input id="restore" type="file" accept="application/json"></label></div>
     </div>
     <div class="card about-card">
-      <div class="section-head"><h2>Acerca de / Actualizaciones</h2><span id="updateState" class="badge ok">v1.7.0</span></div>
-      <div class="about-grid"><div><small>Versión instalada</small><strong>v1.7.0</strong></div><div><small>Fecha de compilación</small><strong>19/07/2026</strong></div><div><small>Estado</small><strong id="aboutStatus">Lista para verificar</strong></div></div>
+      <div class="section-head"><h2>Acerca de / Actualizaciones</h2><span id="updateState" class="badge ok">v1.7.2</span></div>
+      <div class="about-grid"><div><small>Versión instalada</small><strong>v1.7.2</strong></div><div><small>Fecha de compilación</small><strong>19/07/2026</strong></div><div><small>Estado</small><strong id="aboutStatus">Lista para verificar</strong></div></div>
       <button id="aboutUpdateBtn">Buscar actualizaciones</button>
-      <details><summary>Historial de cambios</summary><div class="changelog"><strong>v1.7.0</strong><p>PDF horizontal, recibos con letra más grande y en negrilla, y mejora para adjuntar facturas digitales.</p><strong>v1.6.2</strong><p>Corrección y pruebas de las cinco funciones de salida final.</p><strong>v1.6</strong><p>Aeronave configurable, fechas de comisión, saldo editable, vista previa del Excel y panel de actualización.</p><strong>v1.5</strong><p>Administrador de actualizaciones.</p><strong>v1.4</strong><p>Captura rápida y galería de soportes.</p></div></details>
+      <details><summary>Historial de cambios</summary><div class="changelog"><strong>v1.7.2</strong><p>Separación completa de Caja Menor y Viáticos: saldos, movimientos, soportes, historial, Excel y PDF independientes.</p><strong>v1.7.1</strong><p>Formatos oficiales y PDF horizontal.</p><strong>v1.6.2</strong><p>Corrección y pruebas de las cinco funciones de salida final.</p><strong>v1.6</strong><p>Aeronave configurable, fechas de comisión, saldo editable, vista previa del Excel y panel de actualización.</p><strong>v1.5</strong><p>Administrador de actualizaciones.</p><strong>v1.4</strong><p>Captura rápida y galería de soportes.</p></div></details>
     </div>
   </section>
 
@@ -157,5 +169,6 @@
 
 <div id="toast" class="toast hidden"></div>
 <script src="app.js"></script>
+</div>
 </body>
 </html>

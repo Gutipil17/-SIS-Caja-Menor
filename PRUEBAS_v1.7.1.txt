@@ -1,0 +1,8 @@
+SIS Gastos v1.7.1 - Verificación de formatos oficiales
+
+1. Las plantillas XLSX oficiales se conservan como archivos base, sin rediseñar celdas, títulos, bordes ni instrucciones.
+2. Se retiró la sobrescritura del pageSetup del Excel para no cambiar la configuración oficial de impresión.
+3. La primera página del PDF utiliza como fondo el formato oficial de Caja Menor o Viáticos.
+4. El PDF se crea con constructor posicional jsPDF en orientación landscape para evitar la regresión a vertical.
+5. Recibos y soportes se agregan en páginas horizontales.
+6. Se validó sintaxis JavaScript y presencia de los recursos oficiales en caché.
