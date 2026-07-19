@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+  <meta name="theme-color" content="#0f2742">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="SIS Caja Menor">
+  <title>SIS Caja Menor v1.2</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="assets/icon-192.png">
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+</head>
+<body>
+<header class="topbar">
+  <img src="assets/sis-logo.png" alt="SIS" class="logo">
+  <div><h1>SIS Caja Menor</h1><p id="boxTitle">Caja actual</p><small class="version">v1.2</small></div>
+  <button id="installBtn" class="ghost hidden">Instalar</button>
+</header>
+
+<main>
+  <section id="homeView" class="view active">
+    <div class="summary-grid">
+      <article class="metric"><span>Saldo inicial</span><strong id="mInitial">$0</strong></article>
+      <article class="metric"><span>Gastado</span><strong id="mSpent">$0</strong></article>
+      <article class="metric"><span>Disponible</span><strong id="mBalance">$0</strong></article>
+      <article class="metric"><span>Movimientos</span><strong id="mCount">0</strong></article>
+    </div>
+
+    <button id="quickAdd" class="primary big">+ Añadir gasto</button>
+
+    <div class="card">
+      <div class="section-head"><h2>Movimientos</h2><select id="filter"><option value="all">Todos</option><option value="pending">Pendientes</option><option value="receipt">Recibos de caja</option><option value="invoice">Facturas</option></select></div>
+      <div id="movementList" class="movement-list"></div>
+    </div>
+  </section>
+
+  <section id="settingsView" class="view">
+    <div class="card">
+      <h2>Datos de la caja</h2>
+      <div class="form-grid">
+        <label>Lugar y fecha<input id="placeDate"></label>
+        <label>Periodo<input id="period"></label>
+        <label>Responsable<input id="responsible"></label>
+        <label>Área<input id="area"></label>
+        <label>Cargo<input id="position"></label>
+        <label>Aeronave<input id="aircraft"></label>
+        <label>Tarjeta People Pass<input id="cardNumber"></label>
+        <label>Saldo inicial<input id="initialBalance" inputmode="numeric" type="number"></label>
+        <label>Segundo depósito<input id="secondDeposit" inputmode="numeric" type="number"></label>
+        <label class="wide">Observaciones<textarea id="observations" rows="3"></textarea></label>
+      </div>
+      <div class="button-row"><button id="saveBox" class="primary">Guardar datos</button><button id="newBox" class="danger">Nueva caja</button></div>
+    </div>
+    <div class="card">
+      <h2>Salida final</h2>
+      <p class="muted">Genera el Excel oficial SCOF01 y un PDF completo con recibos, firmas y soportes escaneados.</p>
+      <div class="button-stack"><button id="exportExcel">Generar Excel oficial</button><button id="exportPdf" class="primary">Generar PDF completo</button><button id="backup">Crear copia de seguridad</button><label class="file-btn">Restaurar copia<input id="restore" type="file" accept="application/json"></label></div>
+    </div>
+  </section>
+
+  <section id="historyView" class="view">
+    <div class="card"><div class="section-head"><h2>Historial</h2><button id="refreshHistory">Actualizar</button></div><div id="historyList"></div></div>
+  </section>
+</main>
+
+<nav class="bottom-nav">
+  <button data-view="homeView" class="active">Inicio</button>
+  <button data-view="settingsView">Caja / Exportar</button>
+  <button data-view="historyView">Historial</button>
+</nav>
+
+<div id="expenseModal" class="modal hidden">
+  <div class="sheet">
+    <div class="sheet-head"><h2 id="expenseTitle">Añadir gasto</h2><button id="closeExpense" class="ghost">Cerrar</button></div>
+    <div class="quick-types"><button data-cat="Transporte" data-desc="Taxi">Taxi</button><button data-cat="Papelería" data-desc="Papelería">Papelería</button><button data-cat="Aseo" data-desc="Aseo">Aseo</button><button data-cat="Otros" data-desc="Parqueadero">Parqueadero</button></div>
+    <div class="form-grid">
+      <label>Fecha<input id="eDate" type="date"></label>
+      <label>Ciudad<input id="eCity" autocomplete="address-level2"></label>
+      <label>Tipo de soporte<select id="eSupport"><option>Recibo de Caja</option><option>Factura</option><option>Tiquete</option><option>Otro</option></select></label>
+      <label>Concepto<select id="eCategory"><option>Transporte</option><option>Papelería</option><option>Aseo</option><option>Otros</option></select></label>
+      <label class="wide">Detalle<input id="eDetail" placeholder="Ej. Taxi aeropuerto - hotel"></label>
+      <label>Nombre del tercero<input id="eThirdParty" autocomplete="name"></label>
+      <label>Tipo ID<select id="eIdType"><option>Cédula de Ciudadanía</option><option>NIT/RUT</option><option>Pasaporte</option><option>Otro</option></select></label>
+      <label>Número ID<input id="eIdNumber" inputmode="numeric"></label>
+      <label>Valor<input id="eAmount" type="number" inputmode="numeric"></label>
+      <label class="wide">Escanear o adjuntar soporte<input id="eFiles" type="file" accept="image/*,.pdf" capture="environment" multiple></label>
+    </div>
+    <div id="attachmentPreview" class="attachment-preview"></div>
+    <div class="button-row"><button id="signReceipt">Firmar recibo</button><button id="saveExpense" class="primary">Guardar gasto</button></div>
+    <div id="signatureStatus" class="status-line"></div>
+  </div>
+</div>
+
+<div id="signatureModal" class="modal hidden">
+  <div class="sheet signature-sheet">
+    <div class="sheet-head"><h2>Firma del beneficiario</h2><button id="closeSignature" class="ghost">Cerrar</button></div>
+    <p class="muted">Firme con el dedo en iPhone o con Apple Pencil en iPad.</p>
+    <canvas id="signatureCanvas"></canvas>
+    <div class="button-row"><button id="clearSignature">Borrar</button><button id="confirmSignature" class="primary">Confirmar firma</button></div>
+  </div>
+</div>
+
+<div id="toast" class="toast hidden"></div>
+<script src="app.js"></script>
+</body>
+</html>
