@@ -1,0 +1,15 @@
+SIS GASTOS v1.7.3 — PRUEBAS Y CORRECCIONES
+
+1. Validación de sintaxis completa de app.js con Node.js: APROBADA.
+2. Verificación de IDs HTML usados por JavaScript: APROBADA, sin elementos faltantes.
+3. Comprobación del campo "Descripción adicional del concepto": APROBADA.
+4. Comprobación del texto combinado Concepto + descripción dentro del recibo: APROBADA.
+5. Comprobación de distribución fija: cuatro recibos por hoja A4 horizontal, en una cuadrícula 2 x 2: APROBADA.
+6. Comprobación de tamaño constante: cada recibo usa 134 mm x 82 mm, sin ampliarse cuando hay menos de cuatro: APROBADA.
+7. Comprobación geométrica interna del recibo: 82 mm totales, sin desbordamiento vertical: APROBADA.
+8. Comprobación de descarga individual: usa el mismo tamaño base de 134 mm x 82 mm: APROBADA.
+9. Revisión visual del formato oficial de Caja Menor en página horizontal y recalibración de posiciones: APROBADA.
+10. Verificación de versión, caché y manifiesto v1.7.3: APROBADA.
+11. Caja Menor y Viáticos permanecen separados: APROBADA.
+
+Nota: se conserva la plantilla oficial de la empresa sin redibujar sus líneas, títulos ni estructura.
