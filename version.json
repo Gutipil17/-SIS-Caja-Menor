@@ -1,7 +1,7 @@
 {
-  "version": "1.6.2",
-  "build": "1.6.2",
+  "version": "1.6.3",
+  "build": "1.6.3",
   "name": "SIS Caja Menor",
   "released": "2026-07-19",
-  "notes": "Corrección validada de Vista previa del Excel, Generar Excel, Generar PDF, Crear copia de seguridad y Restaurar copia."
+  "notes": "PDF completo y recibos en orientación horizontal; recibos con texto más grande y en negrilla; adjuntos PDF e imagen mejor explicados."
 }
