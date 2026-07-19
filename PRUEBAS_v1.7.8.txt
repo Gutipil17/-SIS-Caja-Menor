@@ -1,0 +1,12 @@
+SIS Gastos v1.7.8
+
+CAMBIO ÚNICO
+- Todos los datos generados en las celdas del Excel quedan centrados horizontalmente.
+- Se mantiene centrado vertical.
+- Los valores monetarios también quedan centrados dentro de su casilla.
+- No se modifica el PDF vectorial ni la estructura de las plantillas oficiales.
+
+PRUEBAS
+- Sintaxis JavaScript validada.
+- Verificación de setAccountingCell: horizontal=center y vertical=middle.
+- Versión y caché actualizados a v1.7.8.

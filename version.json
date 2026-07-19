@@ -1,1 +1,1 @@
-{"version":"1.7.7","build":"2026-07-19","notes":["Hoja carta horizontal con margen estrecho","Alineación contable recalibrada sobre formatos oficiales","Excel configurado a una página carta horizontal","Tipografía ampliada y legible en recibos de tamaño fijo"]}
+{"version":"1.7.8","build":"2026-07-19","notes":["Contenido generado en Excel centrado horizontal y verticalmente en cada celda","Se conserva el PDF vectorial y todas las funciones de la v1.7.7","Plantillas oficiales sin cambios estructurales"]}
