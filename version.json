@@ -1,7 +1,7 @@
 {
-  "version": "1.6",
-  "build": "1.6.1",
+  "version": "1.6.2",
+  "build": "1.6.2",
   "name": "SIS Caja Menor",
   "released": "2026-07-19",
-  "notes": "Versión 1.6 corregida: aeronave configurable, periodo de comisión, saldo editable, vista previa del Excel y sistema de actualización sin caché antigua."
+  "notes": "Corrección validada de Vista previa del Excel, Generar Excel, Generar PDF, Crear copia de seguridad y Restaurar copia."
 }

@@ -1,4 +1,4 @@
-const CACHE='sis-caja-v1.6.1';
+const CACHE='sis-caja-v1.6.2';
 const CORE=['./','./index.html','./styles.css','./app.js','./manifest.webmanifest','./assets/sis-logo.png','./assets/icon-192.png','./assets/icon-512.png','./assets/plantilla_SCOF01.xlsx'];
 
 self.addEventListener('install',event=>{

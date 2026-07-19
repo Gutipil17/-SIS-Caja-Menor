@@ -1,3 +1,5 @@
+SIS CAJA MENOR v1.6.2 - CORRECCIÓN DE SALIDA FINAL
+
 SIS Caja Menor v1.6 CORREGIDA
 
 Base acumulativa sobre v1.5. Conserva todas las funciones anteriores:

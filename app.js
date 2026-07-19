@@ -19,6 +19,46 @@ async function persistDraft(){state.updatedAt=new Date().toISOString();await put
 function totals(){const spent=state.movements.reduce((a,b)=>a+(+b.amount||0),0),initial=(+state.meta.initialBalance||0)+(+state.meta.secondDeposit||0);return{spent,balance:initial-spent,initial}}
 function normalizeAircraft(value){return String(value||'').toUpperCase().replace(/[^A-Z0-9-]/g,'').replace(/^HK-?/, 'HK')}
 function formatPeriod(start,end){if(!start||!end)return '';const a=new Date(`${start}T00:00:00`),b=new Date(`${end}T00:00:00`);if(Number.isNaN(a)||Number.isNaN(b))return '';const months=['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];if(a.getFullYear()===b.getFullYear()&&a.getMonth()===b.getMonth())return `DEL ${String(a.getDate()).padStart(2,'0')} AL ${String(b.getDate()).padStart(2,'0')} DE ${months[a.getMonth()]} DE ${a.getFullYear()}`;return `DEL ${fmtDate(start)} AL ${fmtDate(end)}`}
+function dateInPeriod(date){
+  if(!date)return false;
+  const start=state.meta.startDate,end=state.meta.endDate;
+  if(!start||!end)return true;
+  return date>=start&&date<=end;
+}
+function refreshMetaFromVisibleForm(){
+  const aircraft=selectedAircraft();
+  if(aircraft)state.meta.aircraft=aircraft;
+  for(const id of ['placeDate','startDate','endDate','responsible','area','position','cardNumber','observations']){
+    const el=$('#'+id);if(el)state.meta[id]=el.value;
+  }
+  for(const id of ['initialBalance','secondDeposit']){
+    const el=$('#'+id);if(el)state.meta[id]=Number(el.value)||0;
+  }
+  state.meta.period=formatPeriod(state.meta.startDate,state.meta.endDate);
+  if($('#period'))$('#period').value=state.meta.period;
+  if($('#periodDisplay'))$('#periodDisplay').textContent=state.meta.period||'Sin periodo definido';
+}
+function validateCommission({requireDates=false,requireMovements=false}={}){
+  refreshMetaFromVisibleForm();
+  if(!state.meta.aircraft)return 'Seleccione o escriba la aeronave.';
+  if(requireDates&&(!state.meta.startDate||!state.meta.endDate))return 'Seleccione la fecha inicial y la fecha final de la comisión.';
+  if(state.meta.startDate&&state.meta.endDate&&state.meta.endDate<state.meta.startDate)return 'La fecha final no puede ser anterior a la fecha inicial.';
+  if(!Number.isFinite(Number(state.meta.initialBalance))||Number(state.meta.initialBalance)<0)return 'El saldo inicial debe ser un valor válido igual o mayor que cero.';
+  if(!Number.isFinite(Number(state.meta.secondDeposit))||Number(state.meta.secondDeposit)<0)return 'El segundo depósito debe ser un valor válido igual o mayor que cero.';
+  if(requireMovements&&!state.movements.length)return 'No hay movimientos registrados para generar la salida.';
+  return '';
+}
+function setButtonBusy(button,busy,label){
+  if(!button)return;
+  if(busy){button.dataset.originalText=button.textContent;button.disabled=true;button.textContent=label||'Procesando…';}
+  else{button.disabled=false;button.textContent=button.dataset.originalText||button.textContent;delete button.dataset.originalText;}
+}
+function downloadBlob(blob,filename){
+  const url=URL.createObjectURL(blob),a=document.createElement('a');
+  a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1500);
+}
+
 function migrateState(){state.meta=state.meta||{};for(const [k,v] of Object.entries({placeDate:'',period:'',startDate:'',endDate:'',responsible:'ANDRES GUTIERREZ BECERRA',area:'OPERACIONES',position:'COPILOTO',aircraft:'HK4900',customAircraft:'',cardNumber:'',initialBalance:1000000,secondDeposit:0,observations:''}))if(state.meta[k]===undefined)state.meta[k]=v;state.meta.aircraft=normalizeAircraft(state.meta.aircraft)||'HK4900';state.movements=state.movements||[]}
 function selectedAircraft(){const sel=$('#aircraft');if(!sel)return state.meta.aircraft;return sel.value==='OTHER'?normalizeAircraft($('#customAircraft').value):normalizeAircraft(sel.value)}
 function updatePeriodUI(){const period=formatPeriod($('#startDate')?.value,$('#endDate')?.value);if($('#period'))$('#period').value=period;if($('#periodDisplay'))$('#periodDisplay').textContent=period||'Sin periodo definido';return period}
@@ -89,7 +129,26 @@ async function archiveCurrent(){syncMetaFromForm();const id=currentId||uid(),pay
 
 // Excel oficial basado en la plantilla entregada
 function excelSerial(s){const d=new Date(`${s}T00:00:00`);return (d-Date.UTC(1899,11,30))/86400000}
-$('#exportExcel').onclick=async()=>{try{const validation=validateCommission({requireDates:true});if(validation)return alert(validation);const buf=await fetch('assets/plantilla_SCOF01.xlsx').then(r=>r.arrayBuffer()),wb=new ExcelJS.Workbook();await wb.xlsx.load(buf);const ws=wb.getWorksheet('Caja Menor'),m=state.meta,all=[...state.movements].sort((a,b)=>(a.date+a.createdAt).localeCompare(b.date+b.createdAt));ws.getCell('D5').value=m.placeDate;ws.getCell('D7').value=m.period;ws.getCell('I5').value=m.responsible;ws.getCell('I6').value=m.area;ws.getCell('I7').value=m.position;ws.getCell('I8').value=m.aircraft;ws.getCell('D10').value=m.cardNumber;ws.getCell('D11').value=+m.initialBalance||0;ws.getCell('D12').value=+m.secondDeposit||0;const t=totals();ws.getCell('D13').value=t.spent;ws.getCell('D14').value=t.balance;for(let r=20;r<=62;r++)for(const c of ['C','D','E','F','G','H','I','K'])ws.getCell(`${c}${r}`).value=null;all.slice(0,43).forEach((x,i)=>{const r=20+i;ws.getCell(`C${r}`).value=new Date(`${x.date}T00:00:00`);ws.getCell(`C${r}`).numFmt='dd/mm/yy';ws.getCell(`D${r}`).value=x.city;ws.getCell(`E${r}`).value=x.support;ws.getCell(`F${r}`).value=x.thirdParty;ws.getCell(`G${r}`).value=x.idType;ws.getCell(`H${r}`).value=x.idNumber;ws.getCell(`I${r}`).value=x.category;ws.getCell(`K${r}`).value=x.amount});ws.getCell('K63').value=t.spent;ws.getCell('C65').value='OBSERVACIONES:';ws.getCell('D65').value=m.observations;const out=await wb.xlsx.writeBuffer(),blob=new Blob([out],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`SIS_Caja_Menor_${m.aircraft||'SCOF01'}_${today()}.xlsx`;a.click();URL.revokeObjectURL(a.href);await archiveCurrent()}catch(e){alert('No fue posible generar el Excel: '+e.message)}};
+$('#exportExcel').onclick=async()=>{
+  const button=$('#exportExcel');setButtonBusy(button,true,'Generando Excel…');
+  try{
+    const validation=validateCommission({requireDates:true});if(validation)return alert(validation);
+    if(typeof ExcelJS==='undefined')throw new Error('No se cargó el generador de Excel. Verifique la conexión a internet y vuelva a abrir la aplicación.');
+    const response=await fetch('assets/plantilla_SCOF01.xlsx',{cache:'no-store'});
+    if(!response.ok)throw new Error(`No se encontró la plantilla SCOF01 (${response.status}).`);
+    const buf=await response.arrayBuffer(),wb=new ExcelJS.Workbook();await wb.xlsx.load(buf);
+    const ws=wb.worksheets.find(sheet=>sheet.name.trim()==='Caja Menor');if(!ws)throw new Error('La plantilla no contiene la hoja “Caja Menor”.');
+    const m=state.meta,all=[...state.movements].sort((a,b)=>(a.date+a.createdAt).localeCompare(b.date+b.createdAt));
+    ws.getCell('D5').value=m.placeDate;ws.getCell('D7').value=m.period;ws.getCell('I5').value=m.responsible;ws.getCell('I6').value=m.area;ws.getCell('I7').value=m.position;ws.getCell('I8').value=m.aircraft;ws.getCell('D10').value=m.cardNumber;ws.getCell('D11').value=+m.initialBalance||0;ws.getCell('D12').value=+m.secondDeposit||0;
+    const t=totals();ws.getCell('D13').value=t.spent;ws.getCell('D14').value=t.balance;
+    for(let r=20;r<=62;r++)for(const c of ['C','D','E','F','G','H','I','K'])ws.getCell(`${c}${r}`).value=null;
+    all.slice(0,43).forEach((x,i)=>{const r=20+i;ws.getCell(`C${r}`).value=new Date(`${x.date}T00:00:00`);ws.getCell(`C${r}`).numFmt='dd/mm/yy';ws.getCell(`D${r}`).value=x.city;ws.getCell(`E${r}`).value=x.support;ws.getCell(`F${r}`).value=x.thirdParty;ws.getCell(`G${r}`).value=x.idType;ws.getCell(`H${r}`).value=x.idNumber;ws.getCell(`I${r}`).value=x.category;ws.getCell(`K${r}`).value=x.amount});
+    ws.getCell('K63').value=t.spent;ws.getCell('C65').value='OBSERVACIONES:';ws.getCell('D65').value=m.observations;
+    const out=await wb.xlsx.writeBuffer();downloadBlob(new Blob([out],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),`SIS_Caja_Menor_${m.aircraft||'SCOF01'}_${today()}.xlsx`);
+    await archiveCurrent();toast('Excel generado correctamente');
+  }catch(e){console.error(e);alert('No fue posible generar el Excel: '+e.message)}
+  finally{setButtonBusy(button,false)}
+};
 
 function logoData(){return new Promise(ok=>{const im=new Image();im.onload=()=>{const c=document.createElement('canvas');c.width=im.naturalWidth||300;c.height=im.naturalHeight||100;c.getContext('2d').drawImage(im,0,0);ok(c.toDataURL('image/png'))};im.onerror=()=>ok(null);im.src='assets/sis-logo.png'})}
 function words(n){const u=['','UNO','DOS','TRES','CUATRO','CINCO','SEIS','SIETE','OCHO','NUEVE','DIEZ','ONCE','DOCE','TRECE','CATORCE','QUINCE','DIECISÉIS','DIECISIETE','DIECIOCHO','DIECINUEVE','VEINTE'],t=['','','VEINTE','TREINTA','CUARENTA','CINCUENTA','SESENTA','SETENTA','OCHENTA','NOVENTA'],h=['','CIENTO','DOSCIENTOS','TRESCIENTOS','CUATROCIENTOS','QUINIENTOS','SEISCIENTOS','SETECIENTOS','OCHOCIENTOS','NOVECIENTOS'];function p(x){x=Math.floor(x);if(x===0)return'CERO';if(x===100)return'CIEN';if(x<21)return u[x];if(x<100)return t[Math.floor(x/10)]+(x%10?' Y '+u[x%10]:'');if(x<1000)return h[Math.floor(x/100)]+(x%100?' '+p(x%100):'');if(x<1e6)return (Math.floor(x/1000)===1?'MIL':p(Math.floor(x/1000))+' MIL')+(x%1000?' '+p(x%1000):'');if(x<1e9)return (Math.floor(x/1e6)===1?'UN MILLÓN':p(Math.floor(x/1e6))+' MILLONES')+(x%1e6?' '+p(x%1e6):'');return String(x)}return p(Number(n)||0)}
@@ -150,24 +209,42 @@ $('#receiptEdit').onclick=()=>{const id=previewReceiptId;$('#receiptModal').clas
 $('#receiptDownload').onclick=async()=>{
   const item=state.movements.find(x=>x.id===previewReceiptId);if(!item)return;
   if(!item.signature&&!confirm('Este recibo todavía no tiene firma. ¿Descargar de todas formas?'))return;
-  const {jsPDF}=window.jspdf,doc=new jsPDF({unit:'mm',format:'a4',compress:true}),logo=await logoData();
+  if(!window.jspdf?.jsPDF)throw new Error('No se cargó el generador de PDF. Verifique la conexión a internet y vuelva a abrir la aplicación.');const {jsPDF}=window.jspdf,doc=new jsPDF({unit:'mm',format:'a4',compress:true}),logo=await logoData();
   addHeader(doc,'RECIBO DE CAJA MENOR',logo,1);drawReceipt(doc,15,32,180,125,item,receiptNumber(item),logo);
   doc.save(`Recibo_RC-${String(receiptNumber(item)).padStart(3,'0')}_${item.thirdParty||'SIS'}_${item.date}.pdf`);
 };
 
 async function imgDim(src){return new Promise(ok=>{const im=new Image();im.onload=()=>ok({w:im.width,h:im.height});im.src=src})}
-$('#exportPdf').onclick=async()=>{if(!state.movements.length)return alert('No hay movimientos.');const validation=validateCommission({requireDates:true});if(validation)return alert(validation);const missing=state.movements.filter(x=>(x.support==='Recibo de Caja'&&!x.signature)||(!x.attachments?.length&&x.support!=='Recibo de Caja'));if(missing.length&&!confirm(`Hay ${missing.length} movimiento(s) con firma o soporte pendiente. ¿Generar de todas formas?`))return;const {jsPDF}=window.jspdf,doc=new jsPDF({unit:'mm',format:'a4',compress:true}),logo=await logoData(),all=[...state.movements].sort((a,b)=>(a.date+a.createdAt).localeCompare(b.date+b.createdAt));drawScof(doc,all,logo);let page=1,receipts=all.filter(x=>x.support==='Recibo de Caja');for(let i=0;i<receipts.length;){doc.addPage();addHeader(doc,'RECIBOS DE CAJA MENOR',logo,++page);const group=receipts.slice(i,i+4),three=group.some(x=>(x.detail||'').length>100),count=three?3:4,h=three?82:63;for(let j=0;j<count&&i<receipts.length;j++,i++){const col=j%2,row=Math.floor(j/2),x=10+col*96,y=26+row*(h+4);drawReceipt(doc,x,y,91,h,receipts[i],i+1,logo)}}for(const [idx,x] of all.entries()){for(const a of x.attachments||[]){for(let p=0;p<a.pages.length;p++){doc.addPage();addHeader(doc,`SOPORTE ${idx+1} - ${x.support.toUpperCase()}`,logo,++page);doc.setFont('helvetica','normal');doc.setFontSize(7);fit(doc,`${fmtDate(x.date)} | ${x.thirdParty||''} | ${x.detail||x.category} | ${money(x.amount)} | ${a.name}${a.pages.length>1?` - Página ${p+1}/${a.pages.length}`:''}`,12,28,186,2,7);const dim=await imgDim(a.pages[p]),ratio=Math.min(186/dim.w,250/dim.h),w=dim.w*ratio,h=dim.h*ratio;doc.addImage(a.pages[p],'JPEG',105-w/2,35,w,h,undefined,'FAST')}}}doc.save(`SIS_Caja_Menor_${state.meta.aircraft||'SCOF01'}_${today()}.pdf`);await archiveCurrent()};
+$('#exportPdf').onclick=async()=>{const button=$('#exportPdf');setButtonBusy(button,true,'Generando PDF…');try{const validation=validateCommission({requireDates:true,requireMovements:true});if(validation)return alert(validation);const missing=state.movements.filter(x=>(x.support==='Recibo de Caja'&&!x.signature)||(!x.attachments?.length&&x.support!=='Recibo de Caja'));if(missing.length&&!confirm(`Hay ${missing.length} movimiento(s) con firma o soporte pendiente. ¿Generar de todas formas?`))return;if(!window.jspdf?.jsPDF)throw new Error('No se cargó el generador de PDF. Verifique la conexión a internet y vuelva a abrir la aplicación.');const {jsPDF}=window.jspdf,doc=new jsPDF({unit:'mm',format:'a4',compress:true}),logo=await logoData(),all=[...state.movements].sort((a,b)=>(a.date+a.createdAt).localeCompare(b.date+b.createdAt));drawScof(doc,all,logo);let page=1,receipts=all.filter(x=>x.support==='Recibo de Caja');for(let i=0;i<receipts.length;){doc.addPage();addHeader(doc,'RECIBOS DE CAJA MENOR',logo,++page);const group=receipts.slice(i,i+4),three=group.some(x=>(x.detail||'').length>100),count=three?3:4,h=three?82:63;for(let j=0;j<count&&i<receipts.length;j++,i++){const col=j%2,row=Math.floor(j/2),x=10+col*96,y=26+row*(h+4);drawReceipt(doc,x,y,91,h,receipts[i],i+1,logo)}}for(const [idx,x] of all.entries()){for(const a of x.attachments||[]){for(let p=0;p<a.pages.length;p++){doc.addPage();addHeader(doc,`SOPORTE ${idx+1} - ${x.support.toUpperCase()}`,logo,++page);doc.setFont('helvetica','normal');doc.setFontSize(7);fit(doc,`${fmtDate(x.date)} | ${x.thirdParty||''} | ${x.detail||x.category} | ${money(x.amount)} | ${a.name}${a.pages.length>1?` - Página ${p+1}/${a.pages.length}`:''}`,12,28,186,2,7);const dim=await imgDim(a.pages[p]),ratio=Math.min(186/dim.w,250/dim.h),w=dim.w*ratio,h=dim.h*ratio;doc.addImage(a.pages[p],'JPEG',105-w/2,35,w,h,undefined,'FAST')}}}doc.save(`SIS_Caja_Menor_${state.meta.aircraft||'SCOF01'}_${today()}.pdf`);await archiveCurrent();toast('PDF generado correctamente')}catch(e){console.error(e);alert('No fue posible generar el PDF: '+e.message)}finally{setButtonBusy(button,false)}};
 
 async function renderHistory(){const box=$('#historyList'),items=(await getAll('boxes')).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt));box.innerHTML=items.length?'':'<p class="muted">No hay cajas guardadas.</p>';for(const p of items){const spent=p.movements.reduce((s,x)=>s+(+x.amount||0),0),d=document.createElement('div');d.className='history-item';d.innerHTML=`<strong>${safe(p.meta.aircraft||'Sin aeronave')} · ${safe(p.meta.period||'Sin periodo')}</strong><small>${p.movements.length} movimientos · ${money(spent)} · ${new Date(p.updatedAt).toLocaleString('es-CO')}</small><div class="button-row"><button data-open>Abrir</button><button data-copy>Duplicar</button><button data-del class="danger">Eliminar</button></div>`;d.querySelector('[data-open]').onclick=async()=>{state=structuredClone(p);currentId=p.id;delete state.id;syncMetaToForm();await persistDraft();render();showView('homeView')};d.querySelector('[data-copy]').onclick=async()=>{state=structuredClone(p);delete state.id;currentId=null;state.meta.period='';state.meta.startDate='';state.meta.endDate='';state.movements=state.movements.map(x=>({...x,id:uid(),signature:null}));syncMetaToForm();await persistDraft();render();showView('homeView');toast('Caja duplicada')};d.querySelector('[data-del]').onclick=async()=>{if(confirm('¿Eliminar esta caja?')){await del('boxes',p.id);renderHistory()}};box.appendChild(d)}}
 $('#refreshHistory').onclick=renderHistory;$('#filter').onchange=renderMovements;
-$('#backup').onclick=async()=>{const payload={draft:state,history:await getAll('boxes')},blob=new Blob([JSON.stringify(payload)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`SIS_Caja_Menor_respaldo_${today()}.json`;a.click();URL.revokeObjectURL(a.href)};
-$('#restore').onchange=async e=>{try{const p=JSON.parse(await e.target.files[0].text());if(p.draft){state=p.draft;await persistDraft()}for(const b of p.history||[])await put('boxes',null,b);syncMetaToForm();render();toast('Copia restaurada')}catch(err){alert('Copia inválida: '+err.message)}};
+$('#backup').onclick=async()=>{
+  const button=$('#backup');setButtonBusy(button,true,'Creando copia…');
+  try{
+    refreshMetaFromVisibleForm();await persistDraft();
+    const payload={format:'SIS_CAJA_MENOR_BACKUP',version:2,createdAt:new Date().toISOString(),draft:state,history:await getAll('boxes')};
+    downloadBlob(new Blob([JSON.stringify(payload,null,2)],{type:'application/json'}),`SIS_Caja_Menor_respaldo_${today()}.json`);toast('Copia de seguridad creada');
+  }catch(err){console.error(err);alert('No fue posible crear la copia de seguridad: '+err.message)}
+  finally{setButtonBusy(button,false)}
+};
+$('#restore').onchange=async e=>{
+  const input=e.target,file=input.files?.[0];if(!file)return;
+  try{
+    const p=JSON.parse(await file.text());
+    if(!p||typeof p!=='object'||(!p.draft&&!Array.isArray(p.history)))throw new Error('El archivo no corresponde a una copia de SIS Caja Menor.');
+    if(p.draft){state=structuredClone(p.draft);migrateState();await persistDraft()}
+    for(const b of p.history||[]){if(b&&b.id&&b.meta&&Array.isArray(b.movements))await put('boxes',null,b)}
+    syncMetaToForm();render();toast('Copia restaurada correctamente');
+  }catch(err){console.error(err);alert('Copia inválida: '+err.message)}
+  finally{input.value=''}
+};
 
 $('#aircraft').onchange=()=>{const other=$('#aircraft').value==='OTHER';$('#customAircraftWrap').classList.toggle('hidden',!other);if(other)setTimeout(()=>$('#customAircraft').focus(),50);syncMetaFromForm()};
 $('#customAircraft').oninput=()=>{state.meta.aircraft=selectedAircraft();render()};
 $('#startDate').onchange=()=>{updatePeriodUI();syncMetaFromForm()};
 $('#endDate').onchange=()=>{updatePeriodUI();syncMetaFromForm()};
-function showExcelPreview(){const validation=validateCommission({requireDates:true});if(validation)return alert(validation);const all=[...state.movements].sort((a,b)=>(a.date+a.createdAt).localeCompare(b.date+b.createdAt)),t=totals(),outside=all.filter(x=>!dateInPeriod(x.date));$('#excelPreviewSummary').innerHTML=`<div><small>Aeronave</small><strong>${safe(state.meta.aircraft)}</strong></div><div><small>Periodo</small><strong>${safe(state.meta.period)}</strong></div><div><small>Saldo inicial</small><strong>${money(state.meta.initialBalance)}</strong></div><div><small>Segundo depósito</small><strong>${money(state.meta.secondDeposit)}</strong></div><div><small>Total gastado</small><strong>${money(t.spent)}</strong></div><div><small>Disponible</small><strong>${money(t.balance)}</strong></div>${outside.length?`<div class="field-warning"><small>Advertencia</small><strong>${outside.length} gasto(s) fuera del periodo</strong></div>`:''}`;$('#excelPreviewRows').innerHTML=all.length?all.map(x=>`<tr class="${dateInPeriod(x.date)?'':'out-period'}"><td>${fmtDate(x.date)}</td><td>${safe(x.city)}</td><td>${safe(x.support)}</td><td>${safe(x.thirdParty)}</td><td>${safe(x.idNumber)}</td><td>${safe(x.category)}</td><td>${money(x.amount)}</td></tr>`).join(''):'<tr><td colspan="7">No hay movimientos registrados.</td></tr>';$('#excelPreviewModal').classList.remove('hidden')}
+function showExcelPreview(){try{const validation=validateCommission({requireDates:true});if(validation)return alert(validation);const all=[...state.movements].sort((a,b)=>(a.date+a.createdAt).localeCompare(b.date+b.createdAt)),t=totals(),outside=all.filter(x=>!dateInPeriod(x.date));$('#excelPreviewSummary').innerHTML=`<div><small>Aeronave</small><strong>${safe(state.meta.aircraft)}</strong></div><div><small>Periodo</small><strong>${safe(state.meta.period)}</strong></div><div><small>Saldo inicial</small><strong>${money(state.meta.initialBalance)}</strong></div><div><small>Segundo depósito</small><strong>${money(state.meta.secondDeposit)}</strong></div><div><small>Total gastado</small><strong>${money(t.spent)}</strong></div><div><small>Disponible</small><strong>${money(t.balance)}</strong></div>${outside.length?`<div class="field-warning"><small>Advertencia</small><strong>${outside.length} gasto(s) fuera del periodo</strong></div>`:''}`;$('#excelPreviewRows').innerHTML=all.length?all.map(x=>`<tr class="${dateInPeriod(x.date)?'':'out-period'}"><td>${fmtDate(x.date)}</td><td>${safe(x.city)}</td><td>${safe(x.support)}</td><td>${safe(x.thirdParty)}</td><td>${safe(x.idNumber)}</td><td>${safe(x.category)}</td><td>${money(x.amount)}</td></tr>`).join(''):'<tr><td colspan="7">No hay movimientos registrados.</td></tr>';$('#excelPreviewModal').classList.remove('hidden')}catch(e){console.error(e);alert('No fue posible mostrar la vista previa: '+e.message)}}
 $('#previewExcel').onclick=showExcelPreview;$('#closeExcelPreview').onclick=()=>$('#excelPreviewModal').classList.add('hidden');$('#excelPreviewEdit').onclick=()=>$('#excelPreviewModal').classList.add('hidden');$('#excelPreviewDownload').onclick=()=>{ $('#excelPreviewModal').classList.add('hidden');$('#exportExcel').click() };
 
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredPrompt=e;$('#installBtn').classList.remove('hidden')});$('#installBtn').onclick=async()=>{if(deferredPrompt){deferredPrompt.prompt();await deferredPrompt.userChoice;deferredPrompt=null;$('#installBtn').classList.add('hidden')}else alert('En iPhone: abra Compartir y pulse “Añadir a pantalla de inicio”.')};
@@ -175,7 +252,7 @@ if('serviceWorker' in navigator)navigator.serviceWorker.register('./service-work
 openDB().then(async()=>{const d=await get('draft','current');if(d)state=d;migrateState();syncMetaToForm();render()}).catch(e=>alert('No se pudo iniciar el almacenamiento local: '+e.message));
 
 // Administrador de actualizaciones v1.6
-const APP_VERSION='1.6';
+const APP_VERSION='1.6.2';
 let swRegistration=null;
 let updateReloadPending=false;
 

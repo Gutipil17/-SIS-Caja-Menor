@@ -1,0 +1,45 @@
+SIS CAJA MENOR v1.6.2 — INFORME DE PRUEBAS
+Fecha: 19/07/2026
+
+CORRECCIÓN PRINCIPAL
+- Se agregó la función validateCommission que faltaba y causaba el error mostrado por la aplicación.
+- Se agregó dateInPeriod para validar los gastos frente al periodo de comisión.
+- Se corrigió el nombre real de la hoja de la plantilla: el archivo usa “Caja Menor ” con un espacio final. El código ahora la localiza de forma segura ignorando espacios.
+
+FUNCIONES REVISADAS
+1. Vista previa del Excel
+   - Valida aeronave, fechas y valores.
+   - Abre la tabla de vista previa.
+   - Señala gastos fuera del periodo.
+
+2. Generar Excel oficial
+   - Verifica que ExcelJS esté cargado.
+   - Verifica que la plantilla exista.
+   - Localiza correctamente la hoja “Caja Menor ”.
+   - Escribe datos generales, saldos y movimientos.
+   - Descarga el archivo y guarda la caja en el historial.
+
+3. Generar PDF completo
+   - Valida periodo y movimientos.
+   - Verifica que jsPDF esté cargado.
+   - Conserva recibos, firmas y soportes.
+   - Incluye manejo de errores y restablece el botón al terminar.
+
+4. Crear copia de seguridad
+   - Guarda borrador e historial en JSON.
+   - Incluye identificador de formato y versión de respaldo.
+   - Maneja errores y confirma la creación.
+
+5. Restaurar copia
+   - Verifica que el archivo sea JSON válido.
+   - Verifica que corresponda a SIS Caja Menor.
+   - Restaura borrador e historial.
+   - Limpia el selector de archivo al terminar.
+
+PRUEBAS AUTOMÁTICAS REALIZADAS
+- Validación sintáctica completa de app.js con Node.js: APROBADA.
+- Verificación de todos los IDs usados por JavaScript contra index.html: APROBADA.
+- Verificación de funciones faltantes o referencias principales: APROBADA.
+- Apertura de la plantilla SCOF01, escritura de datos de prueba, guardado y reapertura: APROBADA.
+- Verificación de la hoja real “Caja Menor ” y celdas de salida: APROBADA.
+- Verificación de version.json, service worker y caché v1.6.2: APROBADA.
