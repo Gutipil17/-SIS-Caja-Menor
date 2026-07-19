@@ -1,0 +1,8 @@
+SIS Gastos v1.7.7
+
+Cambio estructural:
+- La primera página PDF ya no usa imagen con texto superpuesto.
+- El formato SCOF01 se dibuja de forma vectorial, con las casillas y los datos en el mismo sistema de coordenadas.
+- Hoja carta horizontal, margen estrecho fijo de 4,5 mm.
+- Tabla contable con un movimiento por renglón.
+- Recibos de tamaño fijo (4 por hoja) con tipografía ampliada.
