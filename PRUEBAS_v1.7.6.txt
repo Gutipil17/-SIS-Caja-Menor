@@ -1,0 +1,10 @@
+SIS Gastos v1.7.6 - Pruebas realizadas
+
+1. Verificación sintáctica completa de app.js con Node.
+2. Configuración de Excel: carta horizontal, margen estrecho 0.25 pulgadas y ajuste a una sola página.
+3. Validación XML de ambas plantillas oficiales XLSX después de modificar impresión.
+4. PDF: hoja carta horizontal 279.4 x 215.9 mm y margen fijo de 4 mm.
+5. Fondo oficial expandido a toda el área útil, sin reducción proporcional que generaba grandes márgenes.
+6. Recalibración por píxeles de encabezado, saldos, tabla, total y observaciones.
+7. Recibos: cuatro por hoja, tamaño físico constante, tipografía ampliada.
+8. Generación de PDF de control y renderizado a PNG para inspección visual.

@@ -22,7 +22,7 @@ function totals(){const spent=state.movements.reduce((a,b)=>a+(+b.amount||0),0),
 function isViaticos(){return activeModule==='viaticos'}
 function reportName(){return isViaticos()?'Viáticos':'Caja Menor'}
 function reportSlug(){return isViaticos()?'Viaticos':'Caja_Menor'}
-function updateReportUI(){const name=reportName();if($('#appTitle'))$('#appTitle').textContent=`SIS ${name}`;if($('#reportDataTitle'))$('#reportDataTitle').textContent=`Datos de ${name.toLowerCase()}`;if($('#outputHelp'))$('#outputHelp').textContent=`Genera exclusivamente el Excel oficial y el PDF de ${name}, con sus propios movimientos, recibos, firmas y soportes.`;document.title=`SIS ${name} v1.7.5`;const quick=$('#quickAdd');if(quick)quick.textContent=`+ Añadir gasto de ${name}`;const labels=$$('.metric span');if(labels[0])labels[0].textContent=`Saldo inicial ${name}`;if(labels[1])labels[1].textContent=`Gastado ${name}`;if(labels[2])labels[2].textContent=isViaticos()?'Saldo final Viáticos':'Disponible Caja Menor';if($('#exportExcel'))$('#exportExcel').textContent=`Generar Excel de ${name}`;if($('#exportPdf'))$('#exportPdf').textContent=`Generar PDF de ${name}`;if($('#previewExcel'))$('#previewExcel').textContent=`Vista previa de ${name}`;if($('#historyView h2'))$('#historyView h2').textContent=`Historial de ${name}`;$('#secondDepositWrap')?.classList.toggle('hidden',isViaticos());}
+function updateReportUI(){const name=reportName();if($('#appTitle'))$('#appTitle').textContent=`SIS ${name}`;if($('#reportDataTitle'))$('#reportDataTitle').textContent=`Datos de ${name.toLowerCase()}`;if($('#outputHelp'))$('#outputHelp').textContent=`Genera exclusivamente el Excel oficial y el PDF de ${name}, con sus propios movimientos, recibos, firmas y soportes.`;document.title=`SIS ${name} v1.7.6`;const quick=$('#quickAdd');if(quick)quick.textContent=`+ Añadir gasto de ${name}`;const labels=$$('.metric span');if(labels[0])labels[0].textContent=`Saldo inicial ${name}`;if(labels[1])labels[1].textContent=`Gastado ${name}`;if(labels[2])labels[2].textContent=isViaticos()?'Saldo final Viáticos':'Disponible Caja Menor';if($('#exportExcel'))$('#exportExcel').textContent=`Generar Excel de ${name}`;if($('#exportPdf'))$('#exportPdf').textContent=`Generar PDF de ${name}`;if($('#previewExcel'))$('#previewExcel').textContent=`Vista previa de ${name}`;if($('#historyView h2'))$('#historyView h2').textContent=`Historial de ${name}`;$('#secondDepositWrap')?.classList.toggle('hidden',isViaticos());}
 function normalizeAircraft(value){return String(value||'').toUpperCase().replace(/[^A-Z0-9-]/g,'').replace(/^HK-?/, 'HK')}
 function formatPeriod(start,end){if(!start||!end)return '';const a=new Date(`${start}T00:00:00`),b=new Date(`${end}T00:00:00`);if(Number.isNaN(a)||Number.isNaN(b))return '';const months=['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];if(a.getFullYear()===b.getFullYear()&&a.getMonth()===b.getMonth())return `DEL ${String(a.getDate()).padStart(2,'0')} AL ${String(b.getDate()).padStart(2,'0')} DE ${months[a.getMonth()]} DE ${a.getFullYear()}`;return `DEL ${fmtDate(start)} AL ${fmtDate(end)}`}
 function dateInPeriod(date){
@@ -166,14 +166,14 @@ $('#exportExcel').onclick=async()=>{
     const buf=await assetArrayBuffer(template),wb=new ExcelJS.Workbook();await wb.xlsx.load(buf);
     const m=state.meta,all=[...state.movements].sort((a,b)=>(a.date+a.createdAt).localeCompare(b.date+b.createdAt)),t=totals();
     if(isViaticos()){
-      const ws=wb.worksheets.find(sheet=>sheet.name.trim()==='Viaticos (V2)');if(!ws)throw new Error('La plantilla no contiene la hoja “Viaticos (V2)”.');
+      const ws=wb.worksheets.find(sheet=>sheet.name.trim()==='Viaticos (V2)');if(!ws)throw new Error('La plantilla no contiene la hoja “Viaticos (V2)”.');ws.pageSetup={...(ws.pageSetup||{}),orientation:'landscape',paperSize:1,fitToPage:true,fitToWidth:1,fitToHeight:1,margins:{left:.25,right:.25,top:.3,bottom:.3,header:.1,footer:.1}};
       setAccountingCell(ws.getCell('D5'),m.placeDate);setAccountingCell(ws.getCell('D7'),m.period);setAccountingCell(ws.getCell('J5'),m.responsible);setAccountingCell(ws.getCell('J6'),m.area);setAccountingCell(ws.getCell('J7'),m.position);setAccountingCell(ws.getCell('D10'),m.cardNumber);setAccountingCell(ws.getCell('D11'),+m.initialBalance||0,{number:true});setAccountingCell(ws.getCell('D12'),t.spent,{number:true});setAccountingCell(ws.getCell('D13'),t.balance,{number:true});
       for(let r=19;r<=48;r++)for(const c of ['C','D','E','F','G','H','I','K'])ws.getCell(`${c}${r}`).value=null;
       all.slice(0,30).forEach((x,i)=>{const r=19+i;setAccountingCell(ws.getCell(`C${r}`),new Date(`${x.date}T00:00:00`),{date:true});setAccountingCell(ws.getCell(`D${r}`),x.city);setAccountingCell(ws.getCell(`E${r}`),x.support);setAccountingCell(ws.getCell(`F${r}`),x.thirdParty);setAccountingCell(ws.getCell(`G${r}`),x.idType);setAccountingCell(ws.getCell(`H${r}`),x.idNumber);setAccountingCell(ws.getCell(`I${r}`),x.category);setAccountingCell(ws.getCell(`K${r}`),x.amount,{number:true})});
       setAccountingCell(ws.getCell('K49'),t.spent,{number:true});setAccountingCell(ws.getCell('C52'),m.observations||'',{wrap:true});
       
     }else{
-      const ws=wb.worksheets.find(sheet=>sheet.name.trim()==='Caja Menor');if(!ws)throw new Error('La plantilla no contiene la hoja “Caja Menor”.');
+      const ws=wb.worksheets.find(sheet=>sheet.name.trim()==='Caja Menor');if(!ws)throw new Error('La plantilla no contiene la hoja “Caja Menor”.');ws.pageSetup={...(ws.pageSetup||{}),orientation:'landscape',paperSize:1,fitToPage:true,fitToWidth:1,fitToHeight:1,margins:{left:.25,right:.25,top:.3,bottom:.3,header:.1,footer:.1}};
       setAccountingCell(ws.getCell('D5'),m.placeDate);setAccountingCell(ws.getCell('D7'),m.period);setAccountingCell(ws.getCell('I5'),m.responsible);setAccountingCell(ws.getCell('I6'),m.area);setAccountingCell(ws.getCell('I7'),m.position);setAccountingCell(ws.getCell('I8'),m.aircraft);setAccountingCell(ws.getCell('D10'),m.cardNumber);setAccountingCell(ws.getCell('D11'),+m.initialBalance||0,{number:true});setAccountingCell(ws.getCell('D12'),+m.secondDeposit||0,{number:true});setAccountingCell(ws.getCell('D13'),t.spent,{number:true});setAccountingCell(ws.getCell('D14'),t.balance,{number:true});
       for(let r=20;r<=62;r++)for(const c of ['C','D','E','F','G','H','I','K'])ws.getCell(`${c}${r}`).value=null;
       all.slice(0,43).forEach((x,i)=>{const r=20+i;setAccountingCell(ws.getCell(`C${r}`),new Date(`${x.date}T00:00:00`),{date:true});setAccountingCell(ws.getCell(`D${r}`),x.city);setAccountingCell(ws.getCell(`E${r}`),x.support);setAccountingCell(ws.getCell(`F${r}`),x.thirdParty);setAccountingCell(ws.getCell(`G${r}`),x.idType);setAccountingCell(ws.getCell(`H${r}`),x.idNumber);setAccountingCell(ws.getCell(`I${r}`),x.category);setAccountingCell(ws.getCell(`K${r}`),x.amount,{number:true})});
@@ -200,28 +200,34 @@ async function drawScof(doc,all,logo){
   const bg=await imageData(asset),m=state.meta,t=totals(),rect=pdfImageRect(doc,dims.w,dims.h);
   doc.addImage(bg,'PNG',rect.x,rect.y,rect.w,rect.h,undefined,'FAST');
   doc.setTextColor(0);
-  const put=(text,px,py,pw,lines=1,size=6,style='normal',align='left')=>{
+  const put=(text,px,py,pw,lines=1,size=6.2,style='normal',align='left')=>{
     const pt=pdfAt(rect,px,py),width=pdfWidth(rect,pw);
     doc.setFont('helvetica',style);doc.setFontSize(size);
-    if(align==='right'){doc.text(String(text||''),pt.x+width,pt.y,{align:'right'});return}
-    fit(doc,text,pt.x,pt.y,width,lines,size,style);
+    const value=String(text??'');
+    if(align==='right'){doc.text(value,pt.x+width,pt.y,{align:'right',baseline:'middle'});return}
+    const split=doc.splitTextToSize(value,width).slice(0,lines);
+    doc.text(split,pt.x,pt.y,{baseline:'middle'});
   };
   if(viaticos){
-    // Posiciones medidas sobre la imagen oficial de Viáticos (2105 x 1489).
-    put(m.placeDate,275,159,345,1,5.5);put(m.period,275,187,345,1,5.5);
-    put(m.responsible,1230,159,240,1,5.2);put(m.area,1230,176,240,1,5.2);put(m.position,1230,193,240,1,5.2);
-    put(m.cardNumber,270,245,165,1,6.6,'bold');put(money(m.initialBalance),270,269,165,1,6.6,'bold');put(money(t.spent),270,293,165,1,6.6,'bold');put(money(t.balance),270,317,165,1,6.6,'bold');
-    const xs=[26,288,462,644,828,1009,1178,1384], widths=[250,160,170,172,170,155,195,82], y0=410,row=17.9;
-    all.slice(0,30).forEach((x,i)=>{const y=y0+i*row;const vals=[fmtDate(x.date),x.city,x.support,x.thirdParty,x.idType,x.idNumber,x.category,new Intl.NumberFormat('es-CO').format(x.amount)];vals.forEach((v,j)=>put(v,xs[j],y,widths[j],1,j===7?4.8:4.2,j===7?'bold':'normal',j===7?'right':'left'))});
-    put(new Intl.NumberFormat('es-CO').format(t.spent),1384,946,82,1,5,'bold','right');put(m.observations,26,984,1430,3,5.0);
+    // Coordenadas medidas sobre el formato oficial 1485 x 1230.
+    put(m.placeDate,180,124,420,1,6.2); put(m.period,180,151,420,1,6.2);
+    put(m.responsible,1110,124,250,1,5.8); put(m.area,1110,141,250,1,5.8); put(m.position,1110,158,250,1,5.8);
+    put(m.cardNumber,168,206,182,1,6.4,'bold'); put(money(m.initialBalance),168,223,182,1,6.4,'bold');
+    put(money(t.spent),168,240,182,1,6.4,'bold'); put(money(t.balance),168,257,182,1,6.4,'bold');
+    const xs=[17,190,360,535,710,885,1040,1280], widths=[165,160,165,165,165,145,225,165], y0=316,row=13.35;
+    all.slice(0,30).forEach((x,i)=>{const y=y0+i*row;const vals=[fmtDate(x.date),x.city,x.support,x.thirdParty,x.idType,x.idNumber,x.category,new Intl.NumberFormat('es-CO').format(x.amount)];vals.forEach((v,j)=>put(v,xs[j]+3,y,widths[j]-6,1,j===7?5.4:5.0,j===7?'bold':'normal',j===7?'right':'left'))});
+    put(new Intl.NumberFormat('es-CO').format(t.spent),1283,728,160,1,5.8,'bold','right');
+    put(m.observations,20,759,1410,3,5.8);
   }else{
-    // Posiciones medidas sobre la imagen oficial de Caja Menor (2520 x 1530).
-    put(m.placeDate,172,125,400,1,5.4);put(m.period,172,154,400,1,5.4);
-    put(m.responsible,1100,125,220,1,5.1);put(m.area,1100,144,220,1,5.1);put(m.position,1100,162,220,1,5.1);put(m.aircraft,1100,181,220,1,5.1);
-    put(m.cardNumber,175,207,190,1,5.5,'bold');put(money(m.initialBalance),175,224,190,1,5.5,'bold');put(money(m.secondDeposit),175,241,190,1,5.5,'bold');put(money(t.spent),175,258,190,1,5.5,'bold');put(money(t.balance),175,275,190,1,5.5,'bold');
-    const xs=[18,177,370,577,781,950,1105,1281], widths=[150,184,198,195,160,145,165,166], y0=336,row=18.0;
-    all.slice(0,35).forEach((x,i)=>{const y=y0+i*row;const vals=[fmtDate(x.date),x.city,x.support,x.thirdParty,x.idType,x.idNumber,x.category,new Intl.NumberFormat('es-CO').format(x.amount)];vals.forEach((v,j)=>put(v,xs[j],y,widths[j],1,j===7?4.6:4.0,j===7?'bold':'normal',j===7?'right':'left'))});
-    put(new Intl.NumberFormat('es-CO').format(t.spent),1281,975,166,1,5,'bold','right');put(m.observations,20,1013,1410,3,5.0);
+    // Coordenadas medidas sobre el formato oficial 1468 x 1202.
+    put(m.placeDate,165,123,405,1,6.2); put(m.period,165,152,405,1,6.2);
+    put(m.responsible,1085,123,220,1,5.8); put(m.area,1085,138,220,1,5.8); put(m.position,1085,153,220,1,5.8); put(m.aircraft,1085,167,220,1,5.8);
+    put(m.cardNumber,168,194,170,1,6.5,'bold'); put(money(m.initialBalance),168,208,170,1,6.5,'bold');
+    put(money(m.secondDeposit),168,222,170,1,6.5,'bold'); put(money(t.spent),168,236,170,1,6.5,'bold'); put(money(t.balance),168,251,170,1,6.5,'bold');
+    const xs=[15,162,342,534,723,882,1024,1227], widths=[147,180,192,189,159,142,203,124], y0=340,row=14.48;
+    all.slice(0,43).forEach((x,i)=>{const y=y0+i*row;const vals=[fmtDate(x.date),x.city,x.support,x.thirdParty,x.idType,x.idNumber,x.category,new Intl.NumberFormat('es-CO').format(x.amount)];vals.forEach((v,j)=>put(v,xs[j]+3,y,widths[j]-6,1,j===7?5.25:4.85,j===7?'bold':'normal',j===7?'right':'left'))});
+    put(new Intl.NumberFormat('es-CO').format(t.spent),1230,950,115,1,5.8,'bold','right');
+    put(m.observations,18,1010,1325,3,5.8);
   }
 }
 function receiptConcept(item){
@@ -231,37 +237,33 @@ function receiptConcept(item){
   return detail||category||'Sin descripción';
 }
 function pdfImageRect(doc,imgW,imgH){
+  // Hoja carta horizontal con margen estrecho fijo de 4 mm.
+  // Se usa toda el área útil para que el formato contable no quede reducido.
   const {w,h}=pageSize(doc),margin=4;
-  const scale=Math.min((w-margin*2)/imgW,(h-margin*2)/imgH);
-  const rw=imgW*scale,rh=imgH*scale;
-  return{x:(w-rw)/2,y:(h-rh)/2,w:rw,h:rh,sx:rw/imgW,sy:rh/imgH};
+  const rw=w-margin*2,rh=h-margin*2;
+  return{x:margin,y:margin,w:rw,h:rh,sx:rw/imgW,sy:rh/imgH};
 }
 function pdfAt(rect,px,py){return{x:rect.x+px*rect.sx,y:rect.y+py*rect.sy}}
 function pdfWidth(rect,px){return px*rect.sx}
 function drawReceipt(doc,x,y,w,h,item,num,logo){
-  // Tamaño fijo diseñado para cuatro recibos por hoja A4 horizontal.
+  // Tamaño fijo: cuatro recibos por hoja carta horizontal. Nunca se amplía ni reduce.
   const green=[42,145,38],pale=[242,247,239],line=[120,112,58];
-  const headerH=17,dateH=10,paidH=10,conceptH=16,lettersH=14,bottomH=15;
+  const headerH=17,dateH=10,paidH=10,conceptH=17,lettersH=15,bottomH=16;
   const totalH=headerH+dateH+paidH+conceptH+lettersH+bottomH;
   const baseY=y+(h-totalH)/2;
-  doc.setDrawColor(...line);doc.setLineWidth(.3);doc.roundedRect(x,baseY,w,totalH,1.5,1.5);
-  if(logo)doc.addImage(logo,'PNG',x+3,baseY+2,24,8);
-  doc.setFillColor(...green);doc.roundedRect(x+w-46,baseY+2,43,13,1.3,1.3,'F');
-  doc.setTextColor(255);doc.setFont('helvetica','bold');doc.setFontSize(7.2);doc.text('RECIBO DE',x+w-24.5,baseY+7,{align:'center'});doc.text('CAJA MENOR',x+w-24.5,baseY+11.5,{align:'center'});doc.setTextColor(0);
-
+  doc.setDrawColor(...line);doc.setLineWidth(.35);doc.roundedRect(x,baseY,w,totalH,1.5,1.5);
+  if(logo)doc.addImage(logo,'PNG',x+3,baseY+2,25,8.5);
+  doc.setFillColor(...green);doc.roundedRect(x+w-47,baseY+2,44,13,1.3,1.3,'F');
+  doc.setTextColor(255);doc.setFont('helvetica','bold');doc.setFontSize(8.2);doc.text('RECIBO DE',x+w-25,baseY+7,{align:'center'});doc.text('CAJA MENOR',x+w-25,baseY+11.8,{align:'center'});doc.setTextColor(0);
   const top=baseY+headerH,c1=x+w*.40,c2=x+w*.50,c3=x+w*.60,c4=x+w*.74;
   doc.rect(x,top,w,dateH);[c1,c2,c3,c4].forEach(xx=>doc.line(xx,top,xx,top+dateH));
-  doc.setFont('helvetica','bold');doc.setFontSize(5.6);doc.text('CIUDAD',x+2,top+3);doc.text('DÍA',c1+1.5,top+3);doc.text('MES',c2+1.5,top+3);doc.text('AÑO',c3+1.5,top+3);doc.text('No.',c4+1.5,top+3);
-  const d=new Date(item.date+'T00:00:00');fit(doc,item.city,x+2,top+7.2,c1-x-4,1,6.6,'bold');doc.setFont('helvetica','bold');doc.setFontSize(6.4);doc.text(String(d.getDate()).padStart(2,'0'),c1+5,top+7.2);doc.text(String(d.getMonth()+1).padStart(2,'0'),c2+5,top+7.2);doc.text(String(d.getFullYear()),c3+4,top+7.2);doc.text(`RC-${String(num).padStart(3,'0')}`,c4+2,top+7.2);
-
-  let yy=top+dateH;doc.rect(x,yy,w,paidH);doc.line(x+w*.72,yy,x+w*.72,yy+paidH);doc.setFont('helvetica','bold');doc.setFontSize(5.6);doc.text('PAGADO A',x+2,yy+3);doc.text('$',x+w*.74,yy+7);fit(doc,item.thirdParty,x+2,yy+7.2,w*.67,1,6.6,'bold');doc.setFont('helvetica','bold');doc.setFontSize(7.0);doc.text(new Intl.NumberFormat('es-CO').format(item.amount),x+w-2.5,yy+7.2,{align:'right'});
-
-  yy+=paidH;doc.rect(x,yy,w,conceptH);doc.setFont('helvetica','bold');doc.setFontSize(5.6);doc.text('CONCEPTO / DESCRIPCIÓN',x+2,yy+3);fit(doc,receiptConcept(item),x+2,yy+7,w-4,3,6.3,'bold');
-
-  yy+=conceptH;doc.setFillColor(...pale);doc.rect(x,yy,w,lettersH,'FD');doc.setFont('helvetica','bold');doc.setFontSize(5.6);doc.text('VALOR (EN LETRAS)',x+2,yy+3);fit(doc,`${words(item.amount)} PESOS M/CTE`,x+2,yy+7,w-4,2,6.1,'bold');
-
-  yy+=lettersH;doc.rect(x,yy,w,bottomH);const leftW=w*.34;doc.line(x+leftW,yy,x+leftW,yy+bottomH);doc.line(x,yy+bottomH/2,x+leftW,yy+bottomH/2);doc.setFont('helvetica','bold');doc.setFontSize(5.3);doc.text('CÓDIGO',x+2,yy+3.5);doc.text('APROBADO',x+2,yy+bottomH/2+3.5);doc.text('FIRMA DE RECIBIDO',x+leftW+2,yy+3.5);
-  const sigY=yy+bottomH-4;if(item.signature)doc.addImage(item.signature,'PNG',x+leftW+20,yy+1,w-leftW-24,bottomH-5);doc.line(x+leftW+2,sigY,x+w-2,sigY);doc.setFont('helvetica','bold');doc.setFontSize(5.2);const isNit=/nit|rut/i.test(item.idType||'');doc.text(isNit?'NIT:':'C.C.:',x+leftW+2,yy+bottomH-1.2);fit(doc,item.idNumber,x+leftW+13,yy+bottomH-1.2,w-leftW-15,1,5.8,'bold');
+  doc.setFont('helvetica','bold');doc.setFontSize(6.6);doc.text('CIUDAD',x+2,top+3);doc.text('DÍA',c1+1.5,top+3);doc.text('MES',c2+1.5,top+3);doc.text('AÑO',c3+1.5,top+3);doc.text('No.',c4+1.5,top+3);
+  const d=new Date(item.date+'T00:00:00');fit(doc,item.city,x+2,top+7.7,c1-x-4,1,7.8,'bold');doc.setFont('helvetica','bold');doc.setFontSize(7.5);doc.text(String(d.getDate()).padStart(2,'0'),c1+5,top+7.7);doc.text(String(d.getMonth()+1).padStart(2,'0'),c2+5,top+7.7);doc.text(String(d.getFullYear()),c3+4,top+7.7);doc.text(`RC-${String(num).padStart(3,'0')}`,c4+2,top+7.7);
+  let yy=top+dateH;doc.rect(x,yy,w,paidH);doc.line(x+w*.72,yy,x+w*.72,yy+paidH);doc.setFont('helvetica','bold');doc.setFontSize(6.6);doc.text('PAGADO A',x+2,yy+3);doc.text('$',x+w*.74,yy+7.7);fit(doc,item.thirdParty,x+2,yy+7.7,w*.67,1,7.8,'bold');doc.setFont('helvetica','bold');doc.setFontSize(8.2);doc.text(new Intl.NumberFormat('es-CO').format(item.amount),x+w-2.5,yy+7.7,{align:'right'});
+  yy+=paidH;doc.rect(x,yy,w,conceptH);doc.setFont('helvetica','bold');doc.setFontSize(6.6);doc.text('CONCEPTO / DESCRIPCIÓN',x+2,yy+3.2);fit(doc,receiptConcept(item),x+2,yy+8,w-4,2,7.6,'bold');
+  yy+=conceptH;doc.setFillColor(...pale);doc.rect(x,yy,w,lettersH,'FD');doc.setFont('helvetica','bold');doc.setFontSize(6.6);doc.text('VALOR (EN LETRAS)',x+2,yy+3.2);fit(doc,`${words(item.amount)} PESOS M/CTE`,x+2,yy+8,w-4,2,7.4,'bold');
+  yy+=lettersH;doc.rect(x,yy,w,bottomH);const leftW=w*.34;doc.line(x+leftW,yy,x+leftW,yy+bottomH);doc.line(x,yy+bottomH/2,x+leftW,yy+bottomH/2);doc.setFont('helvetica','bold');doc.setFontSize(6.3);doc.text('CÓDIGO',x+2,yy+3.7);doc.text('APROBADO',x+2,yy+bottomH/2+3.7);doc.text('FIRMA DE RECIBIDO',x+leftW+2,yy+3.7);
+  const sigY=yy+bottomH-4;if(item.signature)doc.addImage(item.signature,'PNG',x+leftW+20,yy+1,w-leftW-24,bottomH-5);doc.line(x+leftW+2,sigY,x+w-2,sigY);doc.setFont('helvetica','bold');doc.setFontSize(6.2);const isNit=/nit|rut/i.test(item.idType||'');doc.text(isNit?'NIT:':'C.C.:',x+leftW+2,yy+bottomH-1.2);fit(doc,item.idNumber,x+leftW+14,yy+bottomH-1.2,w-leftW-16,1,7.0,'bold');
 }
 function receiptNumber(item){const sorted=[...state.movements].filter(x=>x.support==='Recibo de Caja').sort((a,b)=>(a.date+a.createdAt).localeCompare(b.date+b.createdAt));return Math.max(1,sorted.findIndex(x=>x.id===item.id)+1)}
 function receiptHtml(item){
@@ -297,7 +299,7 @@ $('#receiptDownload').onclick=async()=>{
 };
 
 async function imgDim(src){return new Promise((ok,fail)=>{const im=new Image();const timer=setTimeout(()=>fail(new Error('El soporte tardó demasiado en cargarse.')),12000);im.onload=()=>{clearTimeout(timer);ok({w:im.naturalWidth||im.width,h:im.naturalHeight||im.height})};im.onerror=()=>{clearTimeout(timer);fail(new Error('No se pudo leer una imagen de soporte.'));};im.src=src})}
-$('#exportPdf').onclick=async()=>{const button=$('#exportPdf');setButtonBusy(button,true,'Generando PDF…');try{const validation=validateCommission({requireDates:true,requireMovements:true});if(validation)return alert(validation);const missing=state.movements.filter(x=>(x.support==='Recibo de Caja'&&!x.signature)||(!x.attachments?.length&&x.support!=='Recibo de Caja'));if(missing.length&&!confirm(`Hay ${missing.length} movimiento(s) con firma o soporte pendiente. ¿Generar de todas formas?`))return;if(!window.jspdf?.jsPDF)throw new Error('No se cargó el generador de PDF. Verifique la conexión a internet y vuelva a abrir la aplicación.');const doc=createLandscapePdf(),logo=await logoData(),all=[...state.movements].sort((a,b)=>(a.date+a.createdAt).localeCompare(b.date+b.createdAt));await drawScof(doc,all,logo);let page=1,receipts=all.filter(x=>x.support==='Recibo de Caja');for(let i=0;i<receipts.length;i+=4){doc.addPage('a4','landscape');addHeader(doc,'RECIBOS DE CAJA MENOR',logo,++page);const group=receipts.slice(i,i+4);const slots=[{x:12,y:27},{x:151,y:27},{x:12,y:113},{x:151,y:113}];for(let j=0;j<group.length;j++){drawReceipt(doc,slots[j].x,slots[j].y,134,82,group[j],i+j+1,logo)}}for(const [idx,x] of all.entries()){for(const a of x.attachments||[]){for(let p=0;p<a.pages.length;p++){const dim=await imgDim(a.pages[p]);doc.addPage('a4','landscape');addHeader(doc,`SOPORTE ${idx+1} - ${x.support.toUpperCase()}`,logo,++page);const ps=pageSize(doc),maxW=ps.w-24,maxH=ps.h-43;doc.setFont('helvetica','bold');fit(doc,`${fmtDate(x.date)} | ${x.thirdParty||''} | ${receiptConcept(x)} | ${money(x.amount)} | ${a.name}${a.pages.length>1?` - Página ${p+1}/${a.pages.length}`:''}`,12,28,maxW,2,7,'bold');const ratio=Math.min(maxW/dim.w,maxH/dim.h),iw=dim.w*ratio,ih=dim.h*ratio;doc.addImage(a.pages[p],'JPEG',ps.w/2-iw/2,35,iw,ih,undefined,'FAST')}}}doc.save(`SIS_${reportSlug()}_${state.meta.aircraft||'SCOF01'}_${today()}.pdf`);await archiveCurrent();toast(`PDF de ${reportName()} generado correctamente`)}catch(e){console.error(e);alert('No fue posible generar el PDF: '+e.message)}finally{setButtonBusy(button,false)}};
+$('#exportPdf').onclick=async()=>{const button=$('#exportPdf');setButtonBusy(button,true,'Generando PDF…');try{const validation=validateCommission({requireDates:true,requireMovements:true});if(validation)return alert(validation);const missing=state.movements.filter(x=>(x.support==='Recibo de Caja'&&!x.signature)||(!x.attachments?.length&&x.support!=='Recibo de Caja'));if(missing.length&&!confirm(`Hay ${missing.length} movimiento(s) con firma o soporte pendiente. ¿Generar de todas formas?`))return;if(!window.jspdf?.jsPDF)throw new Error('No se cargó el generador de PDF. Verifique la conexión a internet y vuelva a abrir la aplicación.');const doc=createLandscapePdf(),logo=await logoData(),all=[...state.movements].sort((a,b)=>(a.date+a.createdAt).localeCompare(b.date+b.createdAt));await drawScof(doc,all,logo);let page=1,receipts=all.filter(x=>x.support==='Recibo de Caja');for(let i=0;i<receipts.length;i+=4){doc.addPage('letter','landscape');addHeader(doc,'RECIBOS DE CAJA MENOR',logo,++page);const group=receipts.slice(i,i+4);const slots=[{x:5,y:24},{x:141,y:24},{x:5,y:111},{x:141,y:111}];for(let j=0;j<group.length;j++){drawReceipt(doc,slots[j].x,slots[j].y,134,82,group[j],i+j+1,logo)}}for(const [idx,x] of all.entries()){for(const a of x.attachments||[]){for(let p=0;p<a.pages.length;p++){const dim=await imgDim(a.pages[p]);doc.addPage('letter','landscape');addHeader(doc,`SOPORTE ${idx+1} - ${x.support.toUpperCase()}`,logo,++page);const ps=pageSize(doc),maxW=ps.w-24,maxH=ps.h-43;doc.setFont('helvetica','bold');fit(doc,`${fmtDate(x.date)} | ${x.thirdParty||''} | ${receiptConcept(x)} | ${money(x.amount)} | ${a.name}${a.pages.length>1?` - Página ${p+1}/${a.pages.length}`:''}`,12,28,maxW,2,7,'bold');const ratio=Math.min(maxW/dim.w,maxH/dim.h),iw=dim.w*ratio,ih=dim.h*ratio;doc.addImage(a.pages[p],'JPEG',ps.w/2-iw/2,35,iw,ih,undefined,'FAST')}}}doc.save(`SIS_${reportSlug()}_${state.meta.aircraft||'SCOF01'}_${today()}.pdf`);await archiveCurrent();toast(`PDF de ${reportName()} generado correctamente`)}catch(e){console.error(e);alert('No fue posible generar el PDF: '+e.message)}finally{setButtonBusy(button,false)}};
 
 async function renderHistory(){const box=$('#historyList'),items=(await getAll('boxes')).filter(p=>(p.module||p.meta?.reportType||'caja')===activeModule).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt));box.innerHTML=items.length?'':`<p class="muted">No hay informes de ${reportName()} guardados.</p>`;for(const p of items){const spent=p.movements.reduce((sum,x)=>sum+(+x.amount||0),0),d=document.createElement('div');d.className='history-item';d.innerHTML=`<strong>${safe(reportName())} · ${safe(p.meta.aircraft||'Sin aeronave')} · ${safe(p.meta.period||'Sin periodo')}</strong><small>${p.movements.length} movimientos · ${money(spent)} · ${new Date(p.updatedAt).toLocaleString('es-CO')}</small><div class="button-row"><button data-open>Abrir</button><button data-copy>Duplicar</button><button data-del class="danger">Eliminar</button></div>`;d.querySelector('[data-open]').onclick=async()=>{state=structuredClone(p);currentId=p.id;delete state.id;delete state.module;migrateState();syncMetaToForm();await persistDraft();render();showView('homeView')};d.querySelector('[data-copy]').onclick=async()=>{state=structuredClone(p);delete state.id;delete state.module;currentId=null;state.meta.period='';state.meta.startDate='';state.meta.endDate='';state.movements=state.movements.map(x=>({...x,id:uid(),signature:null,reportType:activeModule}));syncMetaToForm();await persistDraft();render();showView('homeView');toast(`Informe de ${reportName()} duplicado`)};d.querySelector('[data-del]').onclick=async()=>{if(confirm(`¿Eliminar este informe de ${reportName()}?`)){await del('boxes',p.id);renderHistory()}};box.appendChild(d)}}
 $('#refreshHistory').onclick=renderHistory;$('#filter').onchange=renderMovements;
@@ -341,7 +343,7 @@ $('#switchModuleBtn').onclick=showModuleChooser;
 openDB().then(()=>showModuleChooser()).catch(e=>alert('No se pudo iniciar el almacenamiento local: '+e.message));
 
 // Administrador de actualizaciones v1.7
-const APP_VERSION='1.7.5';
+const APP_VERSION='1.7.6';
 let swRegistration=null;
 let updateReloadPending=false;
 
