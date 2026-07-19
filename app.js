@@ -22,7 +22,7 @@ function totals(){const spent=state.movements.reduce((a,b)=>a+(+b.amount||0),0),
 function isViaticos(){return activeModule==='viaticos'}
 function reportName(){return isViaticos()?'Viáticos':'Caja Menor'}
 function reportSlug(){return isViaticos()?'Viaticos':'Caja_Menor'}
-function updateReportUI(){const name=reportName();if($('#appTitle'))$('#appTitle').textContent=`SIS ${name}`;if($('#reportDataTitle'))$('#reportDataTitle').textContent=`Datos de ${name.toLowerCase()}`;if($('#outputHelp'))$('#outputHelp').textContent=`Genera exclusivamente el Excel oficial y el PDF de ${name}, con sus propios movimientos, recibos, firmas y soportes.`;document.title=`SIS ${name} v1.7.4`;const quick=$('#quickAdd');if(quick)quick.textContent=`+ Añadir gasto de ${name}`;const labels=$$('.metric span');if(labels[0])labels[0].textContent=`Saldo inicial ${name}`;if(labels[1])labels[1].textContent=`Gastado ${name}`;if(labels[2])labels[2].textContent=isViaticos()?'Saldo final Viáticos':'Disponible Caja Menor';if($('#exportExcel'))$('#exportExcel').textContent=`Generar Excel de ${name}`;if($('#exportPdf'))$('#exportPdf').textContent=`Generar PDF de ${name}`;if($('#previewExcel'))$('#previewExcel').textContent=`Vista previa de ${name}`;if($('#historyView h2'))$('#historyView h2').textContent=`Historial de ${name}`;$('#secondDepositWrap')?.classList.toggle('hidden',isViaticos());}
+function updateReportUI(){const name=reportName();if($('#appTitle'))$('#appTitle').textContent=`SIS ${name}`;if($('#reportDataTitle'))$('#reportDataTitle').textContent=`Datos de ${name.toLowerCase()}`;if($('#outputHelp'))$('#outputHelp').textContent=`Genera exclusivamente el Excel oficial y el PDF de ${name}, con sus propios movimientos, recibos, firmas y soportes.`;document.title=`SIS ${name} v1.7.5`;const quick=$('#quickAdd');if(quick)quick.textContent=`+ Añadir gasto de ${name}`;const labels=$$('.metric span');if(labels[0])labels[0].textContent=`Saldo inicial ${name}`;if(labels[1])labels[1].textContent=`Gastado ${name}`;if(labels[2])labels[2].textContent=isViaticos()?'Saldo final Viáticos':'Disponible Caja Menor';if($('#exportExcel'))$('#exportExcel').textContent=`Generar Excel de ${name}`;if($('#exportPdf'))$('#exportPdf').textContent=`Generar PDF de ${name}`;if($('#previewExcel'))$('#previewExcel').textContent=`Vista previa de ${name}`;if($('#historyView h2'))$('#historyView h2').textContent=`Historial de ${name}`;$('#secondDepositWrap')?.classList.toggle('hidden',isViaticos());}
 function normalizeAircraft(value){return String(value||'').toUpperCase().replace(/[^A-Z0-9-]/g,'').replace(/^HK-?/, 'HK')}
 function formatPeriod(start,end){if(!start||!end)return '';const a=new Date(`${start}T00:00:00`),b=new Date(`${end}T00:00:00`);if(Number.isNaN(a)||Number.isNaN(b))return '';const months=['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];if(a.getFullYear()===b.getFullYear()&&a.getMonth()===b.getMonth())return `DEL ${String(a.getDate()).padStart(2,'0')} AL ${String(b.getDate()).padStart(2,'0')} DE ${months[a.getMonth()]} DE ${a.getFullYear()}`;return `DEL ${fmtDate(start)} AL ${fmtDate(end)}`}
 function dateInPeriod(date){
@@ -192,11 +192,11 @@ function pageSize(doc){return{w:doc.internal.pageSize.getWidth(),h:doc.internal.
 function addHeader(doc,title,logo,page){const {w}=pageSize(doc);if(logo)doc.addImage(logo,'PNG',12,8,32,10);doc.setFont('helvetica','bold');doc.setTextColor(15,39,66);doc.setFontSize(12);doc.text(title,w/2,14,{align:'center'});doc.setFontSize(7);doc.text(`SIS SOLUCIONES INTEGRALES · ${state.meta.aircraft||''} · Página ${page}`,w-12,14,{align:'right'});doc.setDrawColor(15,39,66);doc.line(12,20,w-12,20);doc.setTextColor(0)}
 function fit(doc,text,x,y,w,max=2,size=7,style='normal'){doc.setFont('helvetica',style);doc.setFontSize(size);const lines=doc.splitTextToSize(String(text||''),w).slice(0,max);doc.text(lines,x,y)}
 function imageData(url){return Promise.resolve(assetDataUrl(url))}
-function createLandscapePdf(){const {jsPDF}=window.jspdf;return new jsPDF('landscape','mm','a4',true)}
+function createLandscapePdf(){const {jsPDF}=window.jspdf;return new jsPDF({orientation:'landscape',unit:'mm',format:'letter',compress:true})}
 async function drawScof(doc,all,logo){
   const viaticos=isViaticos();
   const asset=viaticos?'assets/formato_VIATICOS_oficial.png':'assets/formato_SCOF01_oficial.png';
-  const dims=viaticos?{w:2105,h:1489}:{w:2520,h:1530};
+  const dims=viaticos?{w:1485,h:1230}:{w:1468,h:1202};
   const bg=await imageData(asset),m=state.meta,t=totals(),rect=pdfImageRect(doc,dims.w,dims.h);
   doc.addImage(bg,'PNG',rect.x,rect.y,rect.w,rect.h,undefined,'FAST');
   doc.setTextColor(0);
@@ -208,20 +208,20 @@ async function drawScof(doc,all,logo){
   };
   if(viaticos){
     // Posiciones medidas sobre la imagen oficial de Viáticos (2105 x 1489).
-    put(m.placeDate,540,279,345,1,5.5);put(m.period,540,307,345,1,5.5);
-    put(m.responsible,1495,279,240,1,5.2);put(m.area,1495,296,240,1,5.2);put(m.position,1495,313,240,1,5.2);
-    put(m.cardNumber,535,365,165,1,5.6,'bold');put(money(m.initialBalance),535,389,165,1,5.6,'bold');put(money(t.spent),535,413,165,1,5.6,'bold');put(money(t.balance),535,437,165,1,5.6,'bold');
-    const xs=[291,553,727,909,1093,1274,1443,1649], widths=[250,160,170,172,170,155,195,82], y0=530,row=17.9;
+    put(m.placeDate,275,159,345,1,5.5);put(m.period,275,187,345,1,5.5);
+    put(m.responsible,1230,159,240,1,5.2);put(m.area,1230,176,240,1,5.2);put(m.position,1230,193,240,1,5.2);
+    put(m.cardNumber,270,245,165,1,6.6,'bold');put(money(m.initialBalance),270,269,165,1,6.6,'bold');put(money(t.spent),270,293,165,1,6.6,'bold');put(money(t.balance),270,317,165,1,6.6,'bold');
+    const xs=[26,288,462,644,828,1009,1178,1384], widths=[250,160,170,172,170,155,195,82], y0=410,row=17.9;
     all.slice(0,30).forEach((x,i)=>{const y=y0+i*row;const vals=[fmtDate(x.date),x.city,x.support,x.thirdParty,x.idType,x.idNumber,x.category,new Intl.NumberFormat('es-CO').format(x.amount)];vals.forEach((v,j)=>put(v,xs[j],y,widths[j],1,j===7?4.8:4.2,j===7?'bold':'normal',j===7?'right':'left'))});
-    put(new Intl.NumberFormat('es-CO').format(t.spent),1649,1066,82,1,5,'bold','right');put(m.observations,291,1104,1430,3,5.0);
+    put(new Intl.NumberFormat('es-CO').format(t.spent),1384,946,82,1,5,'bold','right');put(m.observations,26,984,1430,3,5.0);
   }else{
     // Posiciones medidas sobre la imagen oficial de Caja Menor (2520 x 1530).
-    put(m.placeDate,392,315,400,1,5.4);put(m.period,392,344,400,1,5.4);
-    put(m.responsible,1320,315,220,1,5.1);put(m.area,1320,334,220,1,5.1);put(m.position,1320,352,220,1,5.1);put(m.aircraft,1320,371,220,1,5.1);
-    put(m.cardNumber,395,397,190,1,5.5,'bold');put(money(m.initialBalance),395,414,190,1,5.5,'bold');put(money(m.secondDeposit),395,431,190,1,5.5,'bold');put(money(t.spent),395,448,190,1,5.5,'bold');put(money(t.balance),395,465,190,1,5.5,'bold');
-    const xs=[238,397,590,797,1001,1170,1325,1501], widths=[150,184,198,195,160,145,165,166], y0=526,row=18.0;
+    put(m.placeDate,172,125,400,1,5.4);put(m.period,172,154,400,1,5.4);
+    put(m.responsible,1100,125,220,1,5.1);put(m.area,1100,144,220,1,5.1);put(m.position,1100,162,220,1,5.1);put(m.aircraft,1100,181,220,1,5.1);
+    put(m.cardNumber,175,207,190,1,5.5,'bold');put(money(m.initialBalance),175,224,190,1,5.5,'bold');put(money(m.secondDeposit),175,241,190,1,5.5,'bold');put(money(t.spent),175,258,190,1,5.5,'bold');put(money(t.balance),175,275,190,1,5.5,'bold');
+    const xs=[18,177,370,577,781,950,1105,1281], widths=[150,184,198,195,160,145,165,166], y0=336,row=18.0;
     all.slice(0,35).forEach((x,i)=>{const y=y0+i*row;const vals=[fmtDate(x.date),x.city,x.support,x.thirdParty,x.idType,x.idNumber,x.category,new Intl.NumberFormat('es-CO').format(x.amount)];vals.forEach((v,j)=>put(v,xs[j],y,widths[j],1,j===7?4.6:4.0,j===7?'bold':'normal',j===7?'right':'left'))});
-    put(new Intl.NumberFormat('es-CO').format(t.spent),1501,1165,166,1,5,'bold','right');put(m.observations,240,1203,1410,3,5.0);
+    put(new Intl.NumberFormat('es-CO').format(t.spent),1281,975,166,1,5,'bold','right');put(m.observations,20,1013,1410,3,5.0);
   }
 }
 function receiptConcept(item){
@@ -251,17 +251,17 @@ function drawReceipt(doc,x,y,w,h,item,num,logo){
 
   const top=baseY+headerH,c1=x+w*.40,c2=x+w*.50,c3=x+w*.60,c4=x+w*.74;
   doc.rect(x,top,w,dateH);[c1,c2,c3,c4].forEach(xx=>doc.line(xx,top,xx,top+dateH));
-  doc.setFont('helvetica','bold');doc.setFontSize(4.8);doc.text('CIUDAD',x+2,top+3);doc.text('DÍA',c1+1.5,top+3);doc.text('MES',c2+1.5,top+3);doc.text('AÑO',c3+1.5,top+3);doc.text('No.',c4+1.5,top+3);
-  const d=new Date(item.date+'T00:00:00');fit(doc,item.city,x+2,top+7.2,c1-x-4,1,5.6,'bold');doc.setFont('helvetica','bold');doc.setFontSize(5.5);doc.text(String(d.getDate()).padStart(2,'0'),c1+5,top+7.2);doc.text(String(d.getMonth()+1).padStart(2,'0'),c2+5,top+7.2);doc.text(String(d.getFullYear()),c3+4,top+7.2);doc.text(`RC-${String(num).padStart(3,'0')}`,c4+2,top+7.2);
+  doc.setFont('helvetica','bold');doc.setFontSize(5.6);doc.text('CIUDAD',x+2,top+3);doc.text('DÍA',c1+1.5,top+3);doc.text('MES',c2+1.5,top+3);doc.text('AÑO',c3+1.5,top+3);doc.text('No.',c4+1.5,top+3);
+  const d=new Date(item.date+'T00:00:00');fit(doc,item.city,x+2,top+7.2,c1-x-4,1,6.6,'bold');doc.setFont('helvetica','bold');doc.setFontSize(6.4);doc.text(String(d.getDate()).padStart(2,'0'),c1+5,top+7.2);doc.text(String(d.getMonth()+1).padStart(2,'0'),c2+5,top+7.2);doc.text(String(d.getFullYear()),c3+4,top+7.2);doc.text(`RC-${String(num).padStart(3,'0')}`,c4+2,top+7.2);
 
-  let yy=top+dateH;doc.rect(x,yy,w,paidH);doc.line(x+w*.72,yy,x+w*.72,yy+paidH);doc.setFont('helvetica','bold');doc.setFontSize(4.8);doc.text('PAGADO A',x+2,yy+3);doc.text('$',x+w*.74,yy+7);fit(doc,item.thirdParty,x+2,yy+7.2,w*.67,1,5.8,'bold');doc.setFont('helvetica','bold');doc.setFontSize(6.1);doc.text(new Intl.NumberFormat('es-CO').format(item.amount),x+w-2.5,yy+7.2,{align:'right'});
+  let yy=top+dateH;doc.rect(x,yy,w,paidH);doc.line(x+w*.72,yy,x+w*.72,yy+paidH);doc.setFont('helvetica','bold');doc.setFontSize(5.6);doc.text('PAGADO A',x+2,yy+3);doc.text('$',x+w*.74,yy+7);fit(doc,item.thirdParty,x+2,yy+7.2,w*.67,1,6.6,'bold');doc.setFont('helvetica','bold');doc.setFontSize(7.0);doc.text(new Intl.NumberFormat('es-CO').format(item.amount),x+w-2.5,yy+7.2,{align:'right'});
 
-  yy+=paidH;doc.rect(x,yy,w,conceptH);doc.setFont('helvetica','bold');doc.setFontSize(4.8);doc.text('CONCEPTO / DESCRIPCIÓN',x+2,yy+3);fit(doc,receiptConcept(item),x+2,yy+7,w-4,3,5.5,'bold');
+  yy+=paidH;doc.rect(x,yy,w,conceptH);doc.setFont('helvetica','bold');doc.setFontSize(5.6);doc.text('CONCEPTO / DESCRIPCIÓN',x+2,yy+3);fit(doc,receiptConcept(item),x+2,yy+7,w-4,3,6.3,'bold');
 
-  yy+=conceptH;doc.setFillColor(...pale);doc.rect(x,yy,w,lettersH,'FD');doc.setFont('helvetica','bold');doc.setFontSize(4.8);doc.text('VALOR (EN LETRAS)',x+2,yy+3);fit(doc,`${words(item.amount)} PESOS M/CTE`,x+2,yy+7,w-4,2,5.3,'bold');
+  yy+=conceptH;doc.setFillColor(...pale);doc.rect(x,yy,w,lettersH,'FD');doc.setFont('helvetica','bold');doc.setFontSize(5.6);doc.text('VALOR (EN LETRAS)',x+2,yy+3);fit(doc,`${words(item.amount)} PESOS M/CTE`,x+2,yy+7,w-4,2,6.1,'bold');
 
-  yy+=lettersH;doc.rect(x,yy,w,bottomH);const leftW=w*.34;doc.line(x+leftW,yy,x+leftW,yy+bottomH);doc.line(x,yy+bottomH/2,x+leftW,yy+bottomH/2);doc.setFont('helvetica','bold');doc.setFontSize(4.6);doc.text('CÓDIGO',x+2,yy+3.5);doc.text('APROBADO',x+2,yy+bottomH/2+3.5);doc.text('FIRMA DE RECIBIDO',x+leftW+2,yy+3.5);
-  const sigY=yy+bottomH-4;if(item.signature)doc.addImage(item.signature,'PNG',x+leftW+20,yy+1,w-leftW-24,bottomH-5);doc.line(x+leftW+2,sigY,x+w-2,sigY);doc.setFont('helvetica','bold');doc.setFontSize(4.5);const isNit=/nit|rut/i.test(item.idType||'');doc.text(isNit?'NIT:':'C.C.:',x+leftW+2,yy+bottomH-1.2);fit(doc,item.idNumber,x+leftW+13,yy+bottomH-1.2,w-leftW-15,1,5,'bold');
+  yy+=lettersH;doc.rect(x,yy,w,bottomH);const leftW=w*.34;doc.line(x+leftW,yy,x+leftW,yy+bottomH);doc.line(x,yy+bottomH/2,x+leftW,yy+bottomH/2);doc.setFont('helvetica','bold');doc.setFontSize(5.3);doc.text('CÓDIGO',x+2,yy+3.5);doc.text('APROBADO',x+2,yy+bottomH/2+3.5);doc.text('FIRMA DE RECIBIDO',x+leftW+2,yy+3.5);
+  const sigY=yy+bottomH-4;if(item.signature)doc.addImage(item.signature,'PNG',x+leftW+20,yy+1,w-leftW-24,bottomH-5);doc.line(x+leftW+2,sigY,x+w-2,sigY);doc.setFont('helvetica','bold');doc.setFontSize(5.2);const isNit=/nit|rut/i.test(item.idType||'');doc.text(isNit?'NIT:':'C.C.:',x+leftW+2,yy+bottomH-1.2);fit(doc,item.idNumber,x+leftW+13,yy+bottomH-1.2,w-leftW-15,1,5.8,'bold');
 }
 function receiptNumber(item){const sorted=[...state.movements].filter(x=>x.support==='Recibo de Caja').sort((a,b)=>(a.date+a.createdAt).localeCompare(b.date+b.createdAt));return Math.max(1,sorted.findIndex(x=>x.id===item.id)+1)}
 function receiptHtml(item){
@@ -341,7 +341,7 @@ $('#switchModuleBtn').onclick=showModuleChooser;
 openDB().then(()=>showModuleChooser()).catch(e=>alert('No se pudo iniciar el almacenamiento local: '+e.message));
 
 // Administrador de actualizaciones v1.7
-const APP_VERSION='1.7.4';
+const APP_VERSION='1.7.5';
 let swRegistration=null;
 let updateReloadPending=false;
 

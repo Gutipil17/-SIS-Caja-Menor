@@ -1,0 +1,10 @@
+SIS GASTOS v1.7.5 - PRUEBAS DE PDF
+
+1. Página PDF configurada explícitamente como Letter/Carta horizontal (279,4 x 215,9 mm).
+2. Se eliminaron los márgenes blancos internos de las imágenes oficiales SCOF01 y Viáticos.
+3. Se recalibraron todas las coordenadas después del recorte, incluyendo saldos, responsable, tabla, total y observaciones.
+4. Los valores de saldo inicial, segundo depósito, gastos y saldo final permanecen dentro de sus celdas.
+5. Los recibos conservan tamaño fijo para cuatro por página.
+6. Se aumentó la tipografía interna de los recibos sin cambiar el tamaño físico del recibo.
+7. Verificación de sintaxis JavaScript realizada con Node.js.
+8. Verificación de archivos, versión y caché v1.7.5.
