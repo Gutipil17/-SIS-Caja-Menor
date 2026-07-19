@@ -1,49 +1,22 @@
-SIS CAJA MENOR v1.3 - ACTUALIZACIÓN LISTA PARA GITHUB
+SIS Caja Menor v1.6 CORREGIDA
 
-NOVEDADES DE ESTA VERSIÓN
-- Nueva tarjeta de movimiento con tercero, identificación, fecha, ciudad, soporte y valor mejor organizados.
-- Tres estados visibles: Recibo, Firma y Soporte.
-- Indicador “Movimiento completo”.
-- Botón Recibo en cada Recibo de Caja.
-- Vista previa del recibo con el formato solicitado.
-- Descarga individual de cada recibo en PDF.
-- Botón Firmar directamente desde el movimiento.
-- Botón Escanear directamente desde facturas, tiquetes y otros soportes.
-- Conserva todas las funciones de v1.2: Excel SCOF01, PDF completo, historial, copia de seguridad, cámara, PDF multipágina y firma.
+Base acumulativa sobre v1.5. Conserva todas las funciones anteriores:
+- recibos automáticos;
+- firma con dedo o Apple Pencil;
+- escaneo y galería de soportes;
+- captura rápida;
+- Excel SCOF01;
+- PDF completo;
+- historial y copias de seguridad;
+- administrador de actualizaciones.
 
-CÓMO ACTUALIZAR EN GITHUB
-1. Descomprima este ZIP.
-2. Abra su repositorio -SIS-Caja-Menor en GitHub.
-3. Pulse Add file > Upload files.
-4. Seleccione TODO el contenido interno de esta carpeta: index.html, app.js, styles.css, service-worker.js, manifest.webmanifest, README.txt y la carpeta assets.
-5. Arrástrelo a GitHub. Cuando pregunte, permita reemplazar los archivos existentes.
-6. En Commit changes escriba: Actualización SIS Caja Menor v1.3.
-7. Pulse Commit changes.
-8. Espere entre 1 y 5 minutos.
-
-ACTUALIZAR EN IPHONE O IPAD
-1. Abra la aplicación instalada.
-2. Ciérrela completamente y vuelva a abrirla.
-3. Si todavía muestra v1.2, abra la dirección de GitHub Pages en Safari y recargue la página.
-4. Si continúa igual, vaya a Ajustes > Safari > Avanzado > Datos de sitios web, busque github.io y elimine únicamente los datos de ese sitio. Luego abra nuevamente la app.
-
-IMPORTANTE
-- Los gastos ya guardados permanecen en el dispositivo porque esta actualización conserva la misma base local.
-- Antes de una actualización futura, use “Crear copia de seguridad”.
-- No elimine la carpeta assets ni cambie los nombres de los archivos.
-
-
-CAMBIOS v1.4
-- Captura rápida ampliada: Taxi, Hotel, Alimentación, Combustible, Parqueadero, Papelería, Aseo y Otro.
-- Cada acceso rápido configura automáticamente concepto y tipo de soporte.
-- Nueva galería para abrir y revisar los soportes escaneados desde cada movimiento.
-- Descarga individual de las imágenes del soporte.
-- Indicador del número de páginas adjuntas.
-- Conserva todas las funciones y datos de v1.3.
-
-CAMBIOS v1.5
-- Botón “Actualizar” visible dentro de la aplicación.
-- Verificación manual y automática de nuevas versiones.
-- Instalación controlada del nuevo service worker.
-- Recarga automática cuando la actualización queda activa.
-- Consulta de version.json sin caché para detectar publicaciones nuevas.
+Novedades v1.6:
+- Selector de aeronave y opción Otra aeronave.
+- Fecha inicial y final de comisión.
+- Periodo automático para SCOF01.
+- Validación de gastos fuera del periodo.
+- Saldo inicial y segundo depósito editables.
+- Vista previa del Excel dentro de la aplicación.
+- Panel Acerca de / Actualizaciones.
+- Corrección del service worker para evitar regresar a versiones antiguas.
+- Archivo .gitignore para evitar subir .DS_Store.
