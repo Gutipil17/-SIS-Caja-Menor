@@ -1,0 +1,17 @@
+SIS Gastos v1.7.4 - Corrección de exportación
+
+Correcciones:
+- Plantillas Excel e imágenes oficiales embebidas dentro de la aplicación.
+- Eliminado el fetch de plantillas que causaba “Failed to fetch”.
+- Celdas contables mantienen formato oficial y usan shrink-to-fit sin mover renglones.
+- PDF usa fondos oficiales embebidos y no depende de la red.
+- Lectura de soportes con control de error y tiempo máximo para evitar que el botón quede en “Generando PDF…”.
+- Caché y versión actualizados a 1.7.4.
+
+Pruebas automatizadas:
+- Sintaxis JavaScript.
+- Integridad de plantillas XLSX.
+- Presencia de hojas oficiales.
+- Orientación horizontal y área de impresión.
+- Verificación de recursos embebidos.
+- Verificación de referencias de botones y archivos del service worker.

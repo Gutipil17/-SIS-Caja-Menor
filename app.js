@@ -22,7 +22,7 @@ function totals(){const spent=state.movements.reduce((a,b)=>a+(+b.amount||0),0),
 function isViaticos(){return activeModule==='viaticos'}
 function reportName(){return isViaticos()?'Viáticos':'Caja Menor'}
 function reportSlug(){return isViaticos()?'Viaticos':'Caja_Menor'}
-function updateReportUI(){const name=reportName();if($('#appTitle'))$('#appTitle').textContent=`SIS ${name}`;if($('#reportDataTitle'))$('#reportDataTitle').textContent=`Datos de ${name.toLowerCase()}`;if($('#outputHelp'))$('#outputHelp').textContent=`Genera exclusivamente el Excel oficial y el PDF de ${name}, con sus propios movimientos, recibos, firmas y soportes.`;document.title=`SIS ${name} v1.7.3`;const quick=$('#quickAdd');if(quick)quick.textContent=`+ Añadir gasto de ${name}`;const labels=$$('.metric span');if(labels[0])labels[0].textContent=`Saldo inicial ${name}`;if(labels[1])labels[1].textContent=`Gastado ${name}`;if(labels[2])labels[2].textContent=isViaticos()?'Saldo final Viáticos':'Disponible Caja Menor';if($('#exportExcel'))$('#exportExcel').textContent=`Generar Excel de ${name}`;if($('#exportPdf'))$('#exportPdf').textContent=`Generar PDF de ${name}`;if($('#previewExcel'))$('#previewExcel').textContent=`Vista previa de ${name}`;if($('#historyView h2'))$('#historyView h2').textContent=`Historial de ${name}`;$('#secondDepositWrap')?.classList.toggle('hidden',isViaticos());}
+function updateReportUI(){const name=reportName();if($('#appTitle'))$('#appTitle').textContent=`SIS ${name}`;if($('#reportDataTitle'))$('#reportDataTitle').textContent=`Datos de ${name.toLowerCase()}`;if($('#outputHelp'))$('#outputHelp').textContent=`Genera exclusivamente el Excel oficial y el PDF de ${name}, con sus propios movimientos, recibos, firmas y soportes.`;document.title=`SIS ${name} v1.7.4`;const quick=$('#quickAdd');if(quick)quick.textContent=`+ Añadir gasto de ${name}`;const labels=$$('.metric span');if(labels[0])labels[0].textContent=`Saldo inicial ${name}`;if(labels[1])labels[1].textContent=`Gastado ${name}`;if(labels[2])labels[2].textContent=isViaticos()?'Saldo final Viáticos':'Disponible Caja Menor';if($('#exportExcel'))$('#exportExcel').textContent=`Generar Excel de ${name}`;if($('#exportPdf'))$('#exportPdf').textContent=`Generar PDF de ${name}`;if($('#previewExcel'))$('#previewExcel').textContent=`Vista previa de ${name}`;if($('#historyView h2'))$('#historyView h2').textContent=`Historial de ${name}`;$('#secondDepositWrap')?.classList.toggle('hidden',isViaticos());}
 function normalizeAircraft(value){return String(value||'').toUpperCase().replace(/[^A-Z0-9-]/g,'').replace(/^HK-?/, 'HK')}
 function formatPeriod(start,end){if(!start||!end)return '';const a=new Date(`${start}T00:00:00`),b=new Date(`${end}T00:00:00`);if(Number.isNaN(a)||Number.isNaN(b))return '';const months=['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];if(a.getFullYear()===b.getFullYear()&&a.getMonth()===b.getMonth())return `DEL ${String(a.getDate()).padStart(2,'0')} AL ${String(b.getDate()).padStart(2,'0')} DE ${months[a.getMonth()]} DE ${a.getFullYear()}`;return `DEL ${fmtDate(start)} AL ${fmtDate(end)}`}
 function dateInPeriod(date){
@@ -133,6 +133,28 @@ $('#saveBox').onclick=()=>{syncMetaFromForm();toast('Datos guardados')};
 $('#newBox').onclick=async()=>{if(!confirm(`¿Iniciar un informe nuevo de ${reportName()}? El informe actual debe guardarse en historial si desea conservarlo.`))return;currentId=null;state=defaultState(activeModule);syncMetaToForm();await persistDraft();render();showView('homeView')};
 async function archiveCurrent(){syncMetaFromForm();const id=currentId||uid(),payload={...structuredClone(state),id,module:activeModule};currentId=id;await put('boxes',null,payload);toast(`${reportName()} guardado en historial`);return payload}
 
+// Recursos oficiales incluidos dentro de la aplicación para evitar fallos de red o caché.
+function embeddedAsset(path){return window.SIS_EMBEDDED_ASSETS?.[path]||null}
+function base64ToArrayBuffer(dataUrl){
+  const comma=dataUrl.indexOf(',');if(comma<0)throw new Error('Recurso interno inválido.');
+  const binary=atob(dataUrl.slice(comma+1)),bytes=new Uint8Array(binary.length);
+  for(let i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);
+  return bytes.buffer;
+}
+async function assetArrayBuffer(path){
+  const embedded=embeddedAsset(path);if(embedded)return base64ToArrayBuffer(embedded);
+  const response=await fetch(new URL(path,document.baseURI).href,{cache:'no-store'});
+  if(!response.ok)throw new Error(`No se encontró el recurso oficial ${path} (${response.status}).`);
+  return response.arrayBuffer();
+}
+function assetDataUrl(path){return embeddedAsset(path)||new URL(path,document.baseURI).href}
+function setAccountingCell(cell,value,{wrap=false,number=false,date=false}={}){
+  cell.value=value;
+  cell.alignment={...(cell.alignment||{}),vertical:'middle',horizontal:number?'right':(cell.alignment?.horizontal||'center'),wrapText:wrap,shrinkToFit:!wrap};
+  if(date)cell.numFmt='dd/mm/yy';
+  if(number)cell.numFmt='[$$-es-CO] #,##0';
+  if(cell.font)cell.font={...cell.font,size:Math.min(Number(cell.font.size)||7,7)};
+}
 // Excel oficial basado en la plantilla entregada
 function excelSerial(s){const d=new Date(`${s}T00:00:00`);return (d-Date.UTC(1899,11,30))/86400000}
 $('#exportExcel').onclick=async()=>{
@@ -141,23 +163,21 @@ $('#exportExcel').onclick=async()=>{
     const validation=validateCommission({requireDates:true});if(validation)return alert(validation);
     if(typeof ExcelJS==='undefined')throw new Error('No se cargó el generador de Excel. Verifique la conexión a internet y vuelva a abrir la aplicación.');
     const template=isViaticos()?'assets/plantilla_VIATICOS.xlsx':'assets/plantilla_SCOF01.xlsx';
-    const response=await fetch(template,{cache:'no-store'});
-    if(!response.ok)throw new Error(`No se encontró la plantilla oficial (${response.status}).`);
-    const buf=await response.arrayBuffer(),wb=new ExcelJS.Workbook();await wb.xlsx.load(buf);
+    const buf=await assetArrayBuffer(template),wb=new ExcelJS.Workbook();await wb.xlsx.load(buf);
     const m=state.meta,all=[...state.movements].sort((a,b)=>(a.date+a.createdAt).localeCompare(b.date+b.createdAt)),t=totals();
     if(isViaticos()){
       const ws=wb.worksheets.find(sheet=>sheet.name.trim()==='Viaticos (V2)');if(!ws)throw new Error('La plantilla no contiene la hoja “Viaticos (V2)”.');
-      ws.getCell('D5').value=m.placeDate;ws.getCell('D7').value=m.period;ws.getCell('J5').value=m.responsible;ws.getCell('J6').value=m.area;ws.getCell('J7').value=m.position;ws.getCell('D10').value=m.cardNumber;ws.getCell('D11').value=+m.initialBalance||0;ws.getCell('D12').value=t.spent;ws.getCell('D13').value=t.balance;
+      setAccountingCell(ws.getCell('D5'),m.placeDate);setAccountingCell(ws.getCell('D7'),m.period);setAccountingCell(ws.getCell('J5'),m.responsible);setAccountingCell(ws.getCell('J6'),m.area);setAccountingCell(ws.getCell('J7'),m.position);setAccountingCell(ws.getCell('D10'),m.cardNumber);setAccountingCell(ws.getCell('D11'),+m.initialBalance||0,{number:true});setAccountingCell(ws.getCell('D12'),t.spent,{number:true});setAccountingCell(ws.getCell('D13'),t.balance,{number:true});
       for(let r=19;r<=48;r++)for(const c of ['C','D','E','F','G','H','I','K'])ws.getCell(`${c}${r}`).value=null;
-      all.slice(0,30).forEach((x,i)=>{const r=19+i;ws.getCell(`C${r}`).value=new Date(`${x.date}T00:00:00`);ws.getCell(`C${r}`).numFmt='dd/mm/yy';ws.getCell(`D${r}`).value=x.city;ws.getCell(`E${r}`).value=x.support;ws.getCell(`F${r}`).value=x.thirdParty;ws.getCell(`G${r}`).value=x.idType;ws.getCell(`H${r}`).value=x.idNumber;ws.getCell(`I${r}`).value=x.category;ws.getCell(`K${r}`).value=x.amount});
-      ws.getCell('K49').value=t.spent;ws.getCell('C52').value=m.observations||'';
+      all.slice(0,30).forEach((x,i)=>{const r=19+i;setAccountingCell(ws.getCell(`C${r}`),new Date(`${x.date}T00:00:00`),{date:true});setAccountingCell(ws.getCell(`D${r}`),x.city);setAccountingCell(ws.getCell(`E${r}`),x.support);setAccountingCell(ws.getCell(`F${r}`),x.thirdParty);setAccountingCell(ws.getCell(`G${r}`),x.idType);setAccountingCell(ws.getCell(`H${r}`),x.idNumber);setAccountingCell(ws.getCell(`I${r}`),x.category);setAccountingCell(ws.getCell(`K${r}`),x.amount,{number:true})});
+      setAccountingCell(ws.getCell('K49'),t.spent,{number:true});setAccountingCell(ws.getCell('C52'),m.observations||'',{wrap:true});
       
     }else{
       const ws=wb.worksheets.find(sheet=>sheet.name.trim()==='Caja Menor');if(!ws)throw new Error('La plantilla no contiene la hoja “Caja Menor”.');
-      ws.getCell('D5').value=m.placeDate;ws.getCell('D7').value=m.period;ws.getCell('I5').value=m.responsible;ws.getCell('I6').value=m.area;ws.getCell('I7').value=m.position;ws.getCell('I8').value=m.aircraft;ws.getCell('D10').value=m.cardNumber;ws.getCell('D11').value=+m.initialBalance||0;ws.getCell('D12').value=+m.secondDeposit||0;ws.getCell('D13').value=t.spent;ws.getCell('D14').value=t.balance;
+      setAccountingCell(ws.getCell('D5'),m.placeDate);setAccountingCell(ws.getCell('D7'),m.period);setAccountingCell(ws.getCell('I5'),m.responsible);setAccountingCell(ws.getCell('I6'),m.area);setAccountingCell(ws.getCell('I7'),m.position);setAccountingCell(ws.getCell('I8'),m.aircraft);setAccountingCell(ws.getCell('D10'),m.cardNumber);setAccountingCell(ws.getCell('D11'),+m.initialBalance||0,{number:true});setAccountingCell(ws.getCell('D12'),+m.secondDeposit||0,{number:true});setAccountingCell(ws.getCell('D13'),t.spent,{number:true});setAccountingCell(ws.getCell('D14'),t.balance,{number:true});
       for(let r=20;r<=62;r++)for(const c of ['C','D','E','F','G','H','I','K'])ws.getCell(`${c}${r}`).value=null;
-      all.slice(0,43).forEach((x,i)=>{const r=20+i;ws.getCell(`C${r}`).value=new Date(`${x.date}T00:00:00`);ws.getCell(`C${r}`).numFmt='dd/mm/yy';ws.getCell(`D${r}`).value=x.city;ws.getCell(`E${r}`).value=x.support;ws.getCell(`F${r}`).value=x.thirdParty;ws.getCell(`G${r}`).value=x.idType;ws.getCell(`H${r}`).value=x.idNumber;ws.getCell(`I${r}`).value=x.category;ws.getCell(`K${r}`).value=x.amount});
-      ws.getCell('K63').value=t.spent;ws.getCell('C65').value='OBSERVACIONES:';ws.getCell('D65').value=m.observations;
+      all.slice(0,43).forEach((x,i)=>{const r=20+i;setAccountingCell(ws.getCell(`C${r}`),new Date(`${x.date}T00:00:00`),{date:true});setAccountingCell(ws.getCell(`D${r}`),x.city);setAccountingCell(ws.getCell(`E${r}`),x.support);setAccountingCell(ws.getCell(`F${r}`),x.thirdParty);setAccountingCell(ws.getCell(`G${r}`),x.idType);setAccountingCell(ws.getCell(`H${r}`),x.idNumber);setAccountingCell(ws.getCell(`I${r}`),x.category);setAccountingCell(ws.getCell(`K${r}`),x.amount,{number:true})});
+      setAccountingCell(ws.getCell('K63'),t.spent,{number:true});setAccountingCell(ws.getCell('C65'),'OBSERVACIONES:');setAccountingCell(ws.getCell('D65'),m.observations,{wrap:true});
       
     }
     const out=await wb.xlsx.writeBuffer();downloadBlob(new Blob([out],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),`SIS_${reportSlug()}_${m.aircraft||'SCOF01'}_${today()}.xlsx`);
@@ -166,12 +186,12 @@ $('#exportExcel').onclick=async()=>{
   finally{setButtonBusy(button,false)}
 };
 
-function logoData(){return new Promise(ok=>{const im=new Image();im.onload=()=>{const c=document.createElement('canvas');c.width=im.naturalWidth||300;c.height=im.naturalHeight||100;c.getContext('2d').drawImage(im,0,0);ok(c.toDataURL('image/png'))};im.onerror=()=>ok(null);im.src='assets/sis-logo.png'})}
+function logoData(){return Promise.resolve(assetDataUrl('assets/sis-logo.png'))}
 function words(n){const u=['','UNO','DOS','TRES','CUATRO','CINCO','SEIS','SIETE','OCHO','NUEVE','DIEZ','ONCE','DOCE','TRECE','CATORCE','QUINCE','DIECISÉIS','DIECISIETE','DIECIOCHO','DIECINUEVE','VEINTE'],t=['','','VEINTE','TREINTA','CUARENTA','CINCUENTA','SESENTA','SETENTA','OCHENTA','NOVENTA'],h=['','CIENTO','DOSCIENTOS','TRESCIENTOS','CUATROCIENTOS','QUINIENTOS','SEISCIENTOS','SETECIENTOS','OCHOCIENTOS','NOVECIENTOS'];function p(x){x=Math.floor(x);if(x===0)return'CERO';if(x===100)return'CIEN';if(x<21)return u[x];if(x<100)return t[Math.floor(x/10)]+(x%10?' Y '+u[x%10]:'');if(x<1000)return h[Math.floor(x/100)]+(x%100?' '+p(x%100):'');if(x<1e6)return (Math.floor(x/1000)===1?'MIL':p(Math.floor(x/1000))+' MIL')+(x%1000?' '+p(x%1000):'');if(x<1e9)return (Math.floor(x/1e6)===1?'UN MILLÓN':p(Math.floor(x/1e6))+' MILLONES')+(x%1e6?' '+p(x%1e6):'');return String(x)}return p(Number(n)||0)}
 function pageSize(doc){return{w:doc.internal.pageSize.getWidth(),h:doc.internal.pageSize.getHeight()}}
 function addHeader(doc,title,logo,page){const {w}=pageSize(doc);if(logo)doc.addImage(logo,'PNG',12,8,32,10);doc.setFont('helvetica','bold');doc.setTextColor(15,39,66);doc.setFontSize(12);doc.text(title,w/2,14,{align:'center'});doc.setFontSize(7);doc.text(`SIS SOLUCIONES INTEGRALES · ${state.meta.aircraft||''} · Página ${page}`,w-12,14,{align:'right'});doc.setDrawColor(15,39,66);doc.line(12,20,w-12,20);doc.setTextColor(0)}
 function fit(doc,text,x,y,w,max=2,size=7,style='normal'){doc.setFont('helvetica',style);doc.setFontSize(size);const lines=doc.splitTextToSize(String(text||''),w).slice(0,max);doc.text(lines,x,y)}
-function imageData(url){return new Promise((ok,fail)=>{const im=new Image();im.onload=()=>{const c=document.createElement('canvas');c.width=im.naturalWidth;c.height=im.naturalHeight;c.getContext('2d').drawImage(im,0,0);ok(c.toDataURL('image/png'))};im.onerror=()=>fail(new Error('No se pudo cargar el formato oficial: '+url));im.src=url})}
+function imageData(url){return Promise.resolve(assetDataUrl(url))}
 function createLandscapePdf(){const {jsPDF}=window.jspdf;return new jsPDF('landscape','mm','a4',true)}
 async function drawScof(doc,all,logo){
   const viaticos=isViaticos();
@@ -276,7 +296,7 @@ $('#receiptDownload').onclick=async()=>{
   doc.save(`Recibo_RC-${String(receiptNumber(item)).padStart(3,'0')}_${item.thirdParty||'SIS'}_${item.date}.pdf`);
 };
 
-async function imgDim(src){return new Promise(ok=>{const im=new Image();im.onload=()=>ok({w:im.width,h:im.height});im.src=src})}
+async function imgDim(src){return new Promise((ok,fail)=>{const im=new Image();const timer=setTimeout(()=>fail(new Error('El soporte tardó demasiado en cargarse.')),12000);im.onload=()=>{clearTimeout(timer);ok({w:im.naturalWidth||im.width,h:im.naturalHeight||im.height})};im.onerror=()=>{clearTimeout(timer);fail(new Error('No se pudo leer una imagen de soporte.'));};im.src=src})}
 $('#exportPdf').onclick=async()=>{const button=$('#exportPdf');setButtonBusy(button,true,'Generando PDF…');try{const validation=validateCommission({requireDates:true,requireMovements:true});if(validation)return alert(validation);const missing=state.movements.filter(x=>(x.support==='Recibo de Caja'&&!x.signature)||(!x.attachments?.length&&x.support!=='Recibo de Caja'));if(missing.length&&!confirm(`Hay ${missing.length} movimiento(s) con firma o soporte pendiente. ¿Generar de todas formas?`))return;if(!window.jspdf?.jsPDF)throw new Error('No se cargó el generador de PDF. Verifique la conexión a internet y vuelva a abrir la aplicación.');const doc=createLandscapePdf(),logo=await logoData(),all=[...state.movements].sort((a,b)=>(a.date+a.createdAt).localeCompare(b.date+b.createdAt));await drawScof(doc,all,logo);let page=1,receipts=all.filter(x=>x.support==='Recibo de Caja');for(let i=0;i<receipts.length;i+=4){doc.addPage('a4','landscape');addHeader(doc,'RECIBOS DE CAJA MENOR',logo,++page);const group=receipts.slice(i,i+4);const slots=[{x:12,y:27},{x:151,y:27},{x:12,y:113},{x:151,y:113}];for(let j=0;j<group.length;j++){drawReceipt(doc,slots[j].x,slots[j].y,134,82,group[j],i+j+1,logo)}}for(const [idx,x] of all.entries()){for(const a of x.attachments||[]){for(let p=0;p<a.pages.length;p++){const dim=await imgDim(a.pages[p]);doc.addPage('a4','landscape');addHeader(doc,`SOPORTE ${idx+1} - ${x.support.toUpperCase()}`,logo,++page);const ps=pageSize(doc),maxW=ps.w-24,maxH=ps.h-43;doc.setFont('helvetica','bold');fit(doc,`${fmtDate(x.date)} | ${x.thirdParty||''} | ${receiptConcept(x)} | ${money(x.amount)} | ${a.name}${a.pages.length>1?` - Página ${p+1}/${a.pages.length}`:''}`,12,28,maxW,2,7,'bold');const ratio=Math.min(maxW/dim.w,maxH/dim.h),iw=dim.w*ratio,ih=dim.h*ratio;doc.addImage(a.pages[p],'JPEG',ps.w/2-iw/2,35,iw,ih,undefined,'FAST')}}}doc.save(`SIS_${reportSlug()}_${state.meta.aircraft||'SCOF01'}_${today()}.pdf`);await archiveCurrent();toast(`PDF de ${reportName()} generado correctamente`)}catch(e){console.error(e);alert('No fue posible generar el PDF: '+e.message)}finally{setButtonBusy(button,false)}};
 
 async function renderHistory(){const box=$('#historyList'),items=(await getAll('boxes')).filter(p=>(p.module||p.meta?.reportType||'caja')===activeModule).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt));box.innerHTML=items.length?'':`<p class="muted">No hay informes de ${reportName()} guardados.</p>`;for(const p of items){const spent=p.movements.reduce((sum,x)=>sum+(+x.amount||0),0),d=document.createElement('div');d.className='history-item';d.innerHTML=`<strong>${safe(reportName())} · ${safe(p.meta.aircraft||'Sin aeronave')} · ${safe(p.meta.period||'Sin periodo')}</strong><small>${p.movements.length} movimientos · ${money(spent)} · ${new Date(p.updatedAt).toLocaleString('es-CO')}</small><div class="button-row"><button data-open>Abrir</button><button data-copy>Duplicar</button><button data-del class="danger">Eliminar</button></div>`;d.querySelector('[data-open]').onclick=async()=>{state=structuredClone(p);currentId=p.id;delete state.id;delete state.module;migrateState();syncMetaToForm();await persistDraft();render();showView('homeView')};d.querySelector('[data-copy]').onclick=async()=>{state=structuredClone(p);delete state.id;delete state.module;currentId=null;state.meta.period='';state.meta.startDate='';state.meta.endDate='';state.movements=state.movements.map(x=>({...x,id:uid(),signature:null,reportType:activeModule}));syncMetaToForm();await persistDraft();render();showView('homeView');toast(`Informe de ${reportName()} duplicado`)};d.querySelector('[data-del]').onclick=async()=>{if(confirm(`¿Eliminar este informe de ${reportName()}?`)){await del('boxes',p.id);renderHistory()}};box.appendChild(d)}}
@@ -321,7 +341,7 @@ $('#switchModuleBtn').onclick=showModuleChooser;
 openDB().then(()=>showModuleChooser()).catch(e=>alert('No se pudo iniciar el almacenamiento local: '+e.message));
 
 // Administrador de actualizaciones v1.7
-const APP_VERSION='1.7.0';
+const APP_VERSION='1.7.4';
 let swRegistration=null;
 let updateReloadPending=false;
 
