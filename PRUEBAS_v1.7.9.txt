@@ -1,0 +1,10 @@
+SIS Gastos v1.7.9 — pruebas de icono
+
+- icon-192.png verificado: 192 × 192 px.
+- icon-512.png verificado: 512 × 512 px.
+- apple-touch-icon.png verificado: 180 × 180 px.
+- favicon-32.png y favicon-16.png verificados.
+- manifest.webmanifest referencia los nuevos iconos.
+- index.html referencia Apple Touch Icon y favicon.
+- service worker incluye los nuevos archivos y usa caché v1.7.9.
+- No se modificaron funciones de Caja Menor, Viáticos, Excel ni PDF.
