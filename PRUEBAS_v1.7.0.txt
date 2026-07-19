@@ -1,0 +1,11 @@
+PRUEBAS SIS GASTOS v1.7.0
+
+1. Sintaxis JavaScript validada con node --check.
+2. Todos los ID consultados por app.js existen en index.html.
+3. Plantilla Caja Menor detectada: hoja Caja Menor.
+4. Plantilla Viáticos detectada: hoja Viaticos (V2).
+5. Celdas de encabezado, saldos, movimientos, total y observaciones verificadas contra las plantillas.
+6. Ambas plantillas revisadas sin errores de fórmula #REF!, #DIV/0!, #VALUE!, #NAME? o #N/A.
+7. Service worker actualizado a sis-gastos-v1.7.0 e incluye las dos plantillas.
+8. Migración de datos: informes antiguos se conservan como Caja Menor por defecto.
+9. Historial, firma, recibos, soportes, copia de seguridad y actualización se conservan.

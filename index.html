@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="SIS Caja Menor">
-  <title>SIS Caja Menor v1.6.3</title>
+  <title>SIS Gastos v1.7.0</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="assets/icon-192.png">
   <link rel="stylesheet" href="styles.css">
@@ -18,7 +18,7 @@
 <body>
 <header class="topbar">
   <img src="assets/sis-logo.png" alt="SIS" class="logo">
-  <div><h1>SIS Caja Menor</h1><p id="boxTitle">Caja actual</p><small class="version">v1.6.3</small></div>
+  <div><h1 id="appTitle">SIS Gastos</h1><p id="boxTitle">Caja actual</p><small class="version">v1.7.0</small></div>
   <div class="topbar-actions">
     <button id="updateBtn" class="ghost">Actualizar</button>
     <button id="installBtn" class="ghost hidden">Instalar</button>
@@ -44,8 +44,9 @@
 
   <section id="settingsView" class="view">
     <div class="card">
-      <h2>Datos de la caja</h2>
+      <h2 id="reportDataTitle">Datos del informe</h2>
       <div class="form-grid">
+        <label>Tipo de informe<select id="reportType"><option value="caja">Caja menor</option><option value="viaticos">Viáticos</option></select></label>
         <label>Lugar<input id="placeDate" placeholder="Ej. Bogotá"></label>
         <label>Aeronave<select id="aircraft"><option>HK3779</option><option>HK4692</option><option>HK5334</option><option>HK3882</option><option>HK3911</option><option>HK4900</option><option value="OTHER">Otra aeronave</option></select></label>
         <label id="customAircraftWrap" class="hidden">Otra aeronave<input id="customAircraft" placeholder="Ej. HK1234"></label>
@@ -60,18 +61,18 @@
         <label>Segundo depósito<input id="secondDeposit" inputmode="numeric" type="number" step="1000"></label>
         <label class="wide">Observaciones<textarea id="observations" rows="3"></textarea></label>
       </div>
-      <div class="button-row"><button id="saveBox" class="primary">Guardar datos</button><button id="newBox" class="danger">Nueva caja</button></div>
+      <div class="button-row"><button id="saveBox" class="primary">Guardar datos</button><button id="newBox" class="danger">Nuevo informe</button></div>
     </div>
     <div class="card">
       <h2>Salida final</h2>
-      <p class="muted">Genera el Excel oficial SCOF01 y un PDF completo con recibos, firmas y soportes escaneados.</p>
+      <p id="outputHelp" class="muted">Genera el Excel oficial SCOF01 y un PDF completo con recibos, firmas y soportes escaneados.</p>
       <div class="button-stack"><button id="previewExcel">Vista previa del Excel</button><button id="exportExcel">Generar Excel oficial</button><button id="exportPdf" class="primary">Generar PDF completo</button><button id="backup">Crear copia de seguridad</button><label class="file-btn">Restaurar copia<input id="restore" type="file" accept="application/json"></label></div>
     </div>
     <div class="card about-card">
-      <div class="section-head"><h2>Acerca de / Actualizaciones</h2><span id="updateState" class="badge ok">v1.6.3</span></div>
-      <div class="about-grid"><div><small>Versión instalada</small><strong>v1.6.3</strong></div><div><small>Fecha de compilación</small><strong>19/07/2026</strong></div><div><small>Estado</small><strong id="aboutStatus">Lista para verificar</strong></div></div>
+      <div class="section-head"><h2>Acerca de / Actualizaciones</h2><span id="updateState" class="badge ok">v1.7.0</span></div>
+      <div class="about-grid"><div><small>Versión instalada</small><strong>v1.7.0</strong></div><div><small>Fecha de compilación</small><strong>19/07/2026</strong></div><div><small>Estado</small><strong id="aboutStatus">Lista para verificar</strong></div></div>
       <button id="aboutUpdateBtn">Buscar actualizaciones</button>
-      <details><summary>Historial de cambios</summary><div class="changelog"><strong>v1.6.3</strong><p>PDF horizontal, recibos con letra más grande y en negrilla, y mejora para adjuntar facturas digitales.</p><strong>v1.6.2</strong><p>Corrección y pruebas de las cinco funciones de salida final.</p><strong>v1.6</strong><p>Aeronave configurable, fechas de comisión, saldo editable, vista previa del Excel y panel de actualización.</p><strong>v1.5</strong><p>Administrador de actualizaciones.</p><strong>v1.4</strong><p>Captura rápida y galería de soportes.</p></div></details>
+      <details><summary>Historial de cambios</summary><div class="changelog"><strong>v1.7.0</strong><p>PDF horizontal, recibos con letra más grande y en negrilla, y mejora para adjuntar facturas digitales.</p><strong>v1.6.2</strong><p>Corrección y pruebas de las cinco funciones de salida final.</p><strong>v1.6</strong><p>Aeronave configurable, fechas de comisión, saldo editable, vista previa del Excel y panel de actualización.</p><strong>v1.5</strong><p>Administrador de actualizaciones.</p><strong>v1.4</strong><p>Captura rápida y galería de soportes.</p></div></details>
     </div>
   </section>
 
@@ -82,7 +83,7 @@
 
 <nav class="bottom-nav">
   <button data-view="homeView" class="active">Inicio</button>
-  <button data-view="settingsView">Caja / Exportar</button>
+  <button data-view="settingsView">Informe / Exportar</button>
   <button data-view="historyView">Historial</button>
 </nav>
 
@@ -147,7 +148,7 @@
 
 <div id="excelPreviewModal" class="modal hidden">
   <div class="sheet excel-sheet">
-    <div class="sheet-head"><h2>Vista previa del Excel SCOF01</h2><button id="closeExcelPreview" class="ghost">Cerrar</button></div>
+    <div class="sheet-head"><h2>Vista previa del informe</h2><button id="closeExcelPreview" class="ghost">Cerrar</button></div>
     <div id="excelPreviewSummary" class="preview-summary"></div>
     <div class="table-wrap"><table class="preview-table"><thead><tr><th>Fecha</th><th>Ciudad</th><th>Soporte</th><th>Tercero</th><th>ID</th><th>Concepto</th><th>Valor</th></tr></thead><tbody id="excelPreviewRows"></tbody></table></div>
     <div class="button-row"><button id="excelPreviewEdit">Editar datos</button><button id="excelPreviewDownload" class="primary">Generar Excel oficial</button></div>

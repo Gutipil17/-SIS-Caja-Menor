@@ -1,10 +1,12 @@
-SIS CAJA MENOR v1.6.3 - MEJORAS DE PDF Y SOPORTES
+SIS GASTOS v1.7.0
 
-CAMBIOS
-- PDF completo SCOF01 en orientación horizontal.
-- Páginas de recibos en orientación horizontal.
-- Recibos individuales en PDF horizontal.
-- Datos de recibos con letra más grande, visible y en negrilla.
-- Soportes digitales en imagen o PDF; los PDF multipágina se anexan completos.
-- Los soportes se orientan automáticamente según su forma.
-- Se conservan todas las funciones anteriores.
+MÓDULOS INCLUIDOS
+- Caja Menor con plantilla oficial SCOF01.
+- Viáticos con plantilla oficial VIATICOS SIS.
+- Registro diario de gastos, recibos, firmas y soportes.
+- Exportación a Excel y PDF horizontal.
+- Historial y copias de seguridad.
+- Administrador de actualizaciones.
+
+REGLA DE DESARROLLO
+Esta versión conserva las funciones de versiones anteriores y añade el selector de tipo de informe.

@@ -1,7 +1,7 @@
 {
-  "name":"SIS Caja Menor",
-  "short_name":"SIS Caja",
-  "description":"Registro diario de caja menor, firmas y PDF oficial SCOF01.",
+  "name":"SIS Gastos",
+  "short_name":"SIS Gastos",
+  "description":"Gestión de caja menor y viáticos, firmas, soportes y formatos oficiales SCOF01.",
   "start_url":"./index.html",
   "scope":"./",
   "display":"standalone",

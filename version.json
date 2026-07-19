@@ -1,7 +1,5 @@
 {
-  "version": "1.6.3",
-  "build": "1.6.3",
-  "name": "SIS Caja Menor",
-  "released": "2026-07-19",
-  "notes": "PDF completo y recibos en orientación horizontal; recibos con texto más grande y en negrilla; adjuntos PDF e imagen mejor explicados."
+  "version": "1.7.0",
+  "name": "SIS Gastos",
+  "released": "2026-07-19"
 }
