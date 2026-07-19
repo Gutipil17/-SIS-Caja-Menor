@@ -31,3 +31,12 @@ IMPORTANTE
 - Los gastos ya guardados permanecen en el dispositivo porque esta actualización conserva la misma base local.
 - Antes de una actualización futura, use “Crear copia de seguridad”.
 - No elimine la carpeta assets ni cambie los nombres de los archivos.
+
+
+CAMBIOS v1.4
+- Captura rápida ampliada: Taxi, Hotel, Alimentación, Combustible, Parqueadero, Papelería, Aseo y Otro.
+- Cada acceso rápido configura automáticamente concepto y tipo de soporte.
+- Nueva galería para abrir y revisar los soportes escaneados desde cada movimiento.
+- Descarga individual de las imágenes del soporte.
+- Indicador del número de páginas adjuntas.
+- Conserva todas las funciones y datos de v1.3.

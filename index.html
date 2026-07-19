@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="SIS Caja Menor">
-  <title>SIS Caja Menor v1.3</title>
+  <title>SIS Caja Menor v1.4</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="assets/icon-192.png">
   <link rel="stylesheet" href="styles.css">
@@ -18,7 +18,7 @@
 <body>
 <header class="topbar">
   <img src="assets/sis-logo.png" alt="SIS" class="logo">
-  <div><h1>SIS Caja Menor</h1><p id="boxTitle">Caja actual</p><small class="version">v1.3</small></div>
+  <div><h1>SIS Caja Menor</h1><p id="boxTitle">Caja actual</p><small class="version">v1.4</small></div>
   <button id="installBtn" class="ghost hidden">Instalar</button>
 </header>
 
@@ -77,12 +77,21 @@
 <div id="expenseModal" class="modal hidden">
   <div class="sheet">
     <div class="sheet-head"><h2 id="expenseTitle">Añadir gasto</h2><button id="closeExpense" class="ghost">Cerrar</button></div>
-    <div class="quick-types"><button data-cat="Transporte" data-desc="Taxi">Taxi</button><button data-cat="Papelería" data-desc="Papelería">Papelería</button><button data-cat="Aseo" data-desc="Aseo">Aseo</button><button data-cat="Otros" data-desc="Parqueadero">Parqueadero</button></div>
+    <div class="quick-types">
+      <button data-cat="Transporte" data-desc="Taxi" data-support="Recibo de Caja">🚖 Taxi</button>
+      <button data-cat="Alojamiento" data-desc="Hotel" data-support="Factura">🏨 Hotel</button>
+      <button data-cat="Alimentación" data-desc="Alimentación" data-support="Factura">🍽 Alimentación</button>
+      <button data-cat="Combustible" data-desc="Combustible" data-support="Factura">⛽ Combustible</button>
+      <button data-cat="Otros" data-desc="Parqueadero" data-support="Tiquete">🅿 Parqueadero</button>
+      <button data-cat="Papelería" data-desc="Papelería" data-support="Factura">📎 Papelería</button>
+      <button data-cat="Aseo" data-desc="Aseo" data-support="Factura">🧼 Aseo</button>
+      <button data-cat="Otros" data-desc="" data-support="Otro">➕ Otro</button>
+    </div>
     <div class="form-grid">
       <label>Fecha<input id="eDate" type="date"></label>
       <label>Ciudad<input id="eCity" autocomplete="address-level2"></label>
       <label>Tipo de soporte<select id="eSupport"><option>Recibo de Caja</option><option>Factura</option><option>Tiquete</option><option>Otro</option></select></label>
-      <label>Concepto<select id="eCategory"><option>Transporte</option><option>Papelería</option><option>Aseo</option><option>Otros</option></select></label>
+      <label>Concepto<select id="eCategory"><option>Transporte</option><option>Alojamiento</option><option>Alimentación</option><option>Combustible</option><option>Papelería</option><option>Aseo</option><option>Otros</option></select></label>
       <label class="wide">Detalle<input id="eDetail" placeholder="Ej. Taxi aeropuerto - hotel"></label>
       <label>Nombre del tercero<input id="eThirdParty" autocomplete="name"></label>
       <label>Tipo ID<select id="eIdType"><option>Cédula de Ciudadanía</option><option>NIT/RUT</option><option>Pasaporte</option><option>Otro</option></select></label>
@@ -111,6 +120,16 @@
     <div class="sheet-head"><h2>Vista previa del recibo</h2><button id="closeReceipt" class="ghost">Cerrar</button></div>
     <div id="receiptPreview" class="receipt-preview"></div>
     <div class="button-row"><button id="receiptEdit">Editar datos</button><button id="receiptDownload" class="primary">Descargar recibo PDF</button></div>
+  </div>
+</div>
+
+
+<div id="supportModal" class="modal hidden">
+  <div class="sheet support-sheet">
+    <div class="sheet-head"><h2 id="supportTitle">Soportes del movimiento</h2><button id="closeSupport" class="ghost">Cerrar</button></div>
+    <p id="supportInfo" class="muted"></p>
+    <div id="supportGallery" class="support-gallery"></div>
+    <div class="button-row"><button id="supportEdit">Editar / adjuntar</button><button id="supportDownload" class="primary">Descargar imágenes</button></div>
   </div>
 </div>
 

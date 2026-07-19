@@ -5,7 +5,7 @@ const uid=()=>crypto.randomUUID?crypto.randomUUID():`${Date.now()}-${Math.random
 const today=()=>new Date().toISOString().slice(0,10);
 const fmtDate=s=>{if(!s)return'';const [y,m,d]=s.split('-');return `${d}/${m}/${y}`};
 const safe=s=>String(s||'').replace(/[<>]/g,'');
-let db,currentId=null,editingId=null,tempAttachments=[],tempSignature=null,deferredPrompt=null,previewReceiptId=null;
+let db,currentId=null,editingId=null,tempAttachments=[],tempSignature=null,deferredPrompt=null,previewReceiptId=null,previewSupportId=null;
 let state={meta:{placeDate:'',period:'',responsible:'ANDRES GUTIERREZ BECERRA',area:'OPERACIONES',position:'COPILOTO',aircraft:'HK4900',cardNumber:'',initialBalance:1000000,secondDeposit:0,observations:''},movements:[],updatedAt:new Date().toISOString()};
 if(window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
 
@@ -40,11 +40,13 @@ function renderMovements(){
     const s=movementStatus(x),d=document.createElement('article');
     d.className=`movement${s.complete?' complete':''}`;
     const idLabel=/nit|rut/i.test(x.idType||'')?'NIT':'CC';
-    d.innerHTML=`<div><div class="title">${safe(x.detail||x.category)}</div><div class="person">${safe(x.thirdParty||'Sin tercero')}</div><div class="idline">${x.idNumber?`${idLabel} ${safe(x.idNumber)} · `:''}${fmtDate(x.date)} · ${safe(x.city)}</div><div class="meta">${safe(x.support)} · ${safe(x.category)}</div><div class="badges">${s.isReceipt?`<span class="badge ok">Recibo</span><span class="badge ${s.signOk?'ok':'warn'}">${s.signOk?'Firma lista':'Falta firma'}</span>`:`<span class="badge ${s.supportOk?'ok':'warn'}">${s.supportOk?'Soporte listo':'Falta soporte'}</span>`}${s.complete?'<span class="badge complete">✓ Movimiento completo</span>':''}</div></div><div class="amount">${money(x.amount)}</div><div class="actions">${s.isReceipt?'<button data-receipt class="primary-action">📄 Recibo</button><button data-sign>✍ Firmar</button>':'<button data-scan>📷 Escanear</button>'}<button data-edit>Editar</button><button data-copy>Duplicar</button><button data-delete class="danger">Eliminar</button></div>`;
+    const attachCount=(x.attachments||[]).reduce((n,a)=>n+(a.pages?.length||0),0);
+    d.innerHTML=`<div><div class="title">${safe(x.detail||x.category)}</div><div class="person">${safe(x.thirdParty||'Sin tercero')}</div><div class="idline">${x.idNumber?`${idLabel} ${safe(x.idNumber)} · `:''}${fmtDate(x.date)} · ${safe(x.city)}</div><div class="meta">${safe(x.support)} · ${safe(x.category)}</div><div class="badges">${s.isReceipt?`<span class="badge ok">Recibo</span><span class="badge ${s.signOk?'ok':'warn'}">${s.signOk?'Firma lista':'Falta firma'}</span>`:`<span class="badge ${s.supportOk?'ok':'warn'}">${s.supportOk?`Soporte listo (${attachCount})`:'Falta soporte'}</span>`}${s.complete?'<span class="badge complete">✓ Movimiento completo</span>':''}</div></div><div class="amount">${money(x.amount)}</div><div class="actions">${s.isReceipt?'<button data-receipt class="primary-action">📄 Recibo</button><button data-sign>✍ Firmar</button>':(s.supportOk?'<button data-view-support class="primary-action">👁 Ver soporte</button>':'<button data-scan>📷 Escanear</button>')}<button data-edit>Editar</button><button data-copy>Duplicar</button><button data-delete class="danger">Eliminar</button></div>`;
     d.querySelector('[data-edit]').onclick=()=>openExpense(x.id);
     d.querySelector('[data-receipt]')?.addEventListener('click',()=>openReceiptPreview(x.id));
     d.querySelector('[data-sign]')?.addEventListener('click',()=>openExpenseAction(x.id,'sign'));
     d.querySelector('[data-scan]')?.addEventListener('click',()=>openExpenseAction(x.id,'scan'));
+    d.querySelector('[data-view-support]')?.addEventListener('click',()=>openSupportPreview(x.id));
     d.querySelector('[data-copy]').onclick=()=>{const c=structuredClone(x);c.id=uid();c.createdAt=new Date().toISOString();c.signature=null;state.movements.push(c);persistDraft();render();toast('Movimiento duplicado')};
     d.querySelector('[data-delete]').onclick=async()=>{if(confirm('¿Eliminar este movimiento?')){state.movements=state.movements.filter(m=>m.id!==x.id);await persistDraft();render()}};
     box.appendChild(d)
@@ -58,7 +60,7 @@ function resetExpense(){editingId=null;tempAttachments=[];tempSignature=null;$('
 function openExpense(id=null){resetExpense();if(id){const x=state.movements.find(m=>m.id===id);if(!x)return;editingId=id;$('#expenseTitle').textContent='Editar gasto';$('#eDate').value=x.date;$('#eCity').value=x.city;$('#eSupport').value=x.support;$('#eCategory').value=x.category;$('#eDetail').value=x.detail;$('#eThirdParty').value=x.thirdParty;$('#eIdType').value=x.idType;$('#eIdNumber').value=x.idNumber;$('#eAmount').value=x.amount;tempAttachments=structuredClone(x.attachments||[]);tempSignature=x.signature||null;renderAttachmentPreview();renderSignatureStatus()}$('#expenseModal').classList.remove('hidden')}
 $('#quickAdd').onclick=()=>openExpense();$('#closeExpense').onclick=()=>$('#expenseModal').classList.add('hidden');
 function openExpenseAction(id,action){openExpense(id);setTimeout(()=>{if(action==='sign')$('#signReceipt').click();if(action==='scan')$('#eFiles').click()},180)}
-$$('.quick-types button').forEach(b=>b.onclick=()=>{$('#eCategory').value=b.dataset.cat;$('#eDetail').value=b.dataset.desc});
+$$('.quick-types button').forEach(b=>b.onclick=()=>{$('#eCategory').value=b.dataset.cat;$('#eDetail').value=b.dataset.desc;$('#eSupport').value=b.dataset.support||'Otro';renderSignatureStatus();if(!b.dataset.desc)$('#eDetail').focus();else $('#eThirdParty').focus()});
 function renderSignatureStatus(){$('#signatureStatus').textContent=$('#eSupport').value==='Recibo de Caja'?(tempSignature?'Firma guardada para este recibo.':'Este recibo aún no tiene firma.'):'La firma solo aplica a Recibos de Caja.'}
 $('#eSupport').onchange=renderSignatureStatus;
 async function fileToDataURL(file){return new Promise((ok,fail)=>{const r=new FileReader();r.onload=()=>ok(r.result);r.onerror=fail;r.readAsDataURL(file)})}
@@ -120,6 +122,19 @@ function receiptHtml(item){
   const d=new Date(item.date+'T00:00:00'),num=receiptNumber(item),idLabel=/nit|rut/i.test(item.idType||'')?'NIT':'C.C.';
   return `<div class="receipt-paper"><div class="receipt-top"><div class="receipt-brand"><img src="assets/sis-logo.png" alt="SIS"></div><div class="receipt-title">RECIBO DE<br>CAJA MENOR</div></div><div class="receipt-grid"><div class="receipt-row receipt-date"><div><div class="receipt-label">Ciudad</div><div class="receipt-value">${safe(item.city)}</div></div><div><div class="receipt-label">Día</div><div class="receipt-value">${String(d.getDate()).padStart(2,'0')}</div></div><div><div class="receipt-label">Mes</div><div class="receipt-value">${String(d.getMonth()+1).padStart(2,'0')}</div></div><div><div class="receipt-label">Año</div><div class="receipt-value">${d.getFullYear()}</div></div><div><div class="receipt-label">No.</div><div class="receipt-value">RC-${String(num).padStart(3,'0')}</div></div></div><div class="receipt-row receipt-paid"><div><div class="receipt-label">Pagado a</div><div class="receipt-value">${safe(item.thirdParty)}</div></div><div><div class="receipt-label">Valor</div><div class="receipt-amount">${money(item.amount)}</div></div></div><div class="receipt-row receipt-one"><div><div class="receipt-label">Concepto</div><div class="receipt-value">${safe(item.detail||item.category)}</div></div></div><div class="receipt-row receipt-one receipt-words"><div><div class="receipt-label">Valor en letras</div><div class="receipt-value">${words(item.amount)} PESOS M/CTE</div></div></div><div class="receipt-row receipt-bottom"><div class="receipt-bottom-left"><div><div class="receipt-label">Código</div><div class="receipt-value"></div></div><div><div class="receipt-label">Aprobado</div><div class="receipt-value"></div></div></div><div class="receipt-signature"><div class="receipt-label">Firma de recibido</div>${item.signature?`<img src="${item.signature}" alt="Firma">`:'<div class="receipt-value receipt-missing">Falta firma</div>'}<div class="receipt-sign-line">${idLabel}: ${safe(item.idNumber)}</div></div></div></div></div>`;
 }
+
+function openSupportPreview(id){
+  const item=state.movements.find(x=>x.id===id);if(!item)return;
+  const pages=(item.attachments||[]).flatMap((a,ai)=>(a.pages||[]).map((src,pi)=>({src,name:a.name,index:`${ai+1}.${pi+1}`})));
+  if(!pages.length)return openExpenseAction(id,'scan');
+  previewSupportId=id;$('#supportTitle').textContent=`Soportes · ${item.detail||item.category}`;$('#supportInfo').textContent=`${fmtDate(item.date)} · ${item.thirdParty||'Sin tercero'} · ${money(item.amount)} · ${pages.length} página(s)`;
+  $('#supportGallery').innerHTML=pages.map((p,i)=>`<article class="support-page"><img src="${p.src}" alt="Soporte ${i+1}"><div><strong>Página ${i+1}</strong><small>${safe(p.name)}</small></div></article>`).join('');
+  $('#supportModal').classList.remove('hidden');
+}
+$('#closeSupport').onclick=()=>$('#supportModal').classList.add('hidden');
+$('#supportEdit').onclick=()=>{const id=previewSupportId;$('#supportModal').classList.add('hidden');openExpense(id)};
+$('#supportDownload').onclick=()=>{const item=state.movements.find(x=>x.id===previewSupportId);if(!item)return;let n=0;for(const a of item.attachments||[])for(const src of a.pages||[]){n++;const link=document.createElement('a');link.href=src;link.download=`Soporte_${item.date}_${String(n).padStart(2,'0')}.jpg`;link.click()}toast('Descarga iniciada')};
+
 function openReceiptPreview(id){
   const item=state.movements.find(x=>x.id===id);if(!item)return;
   if(item.support!=='Recibo de Caja')return alert('Este movimiento no corresponde a un Recibo de Caja.');
