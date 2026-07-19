@@ -5,7 +5,7 @@ const uid=()=>crypto.randomUUID?crypto.randomUUID():`${Date.now()}-${Math.random
 const today=()=>new Date().toISOString().slice(0,10);
 const fmtDate=s=>{if(!s)return'';const [y,m,d]=s.split('-');return `${d}/${m}/${y}`};
 const safe=s=>String(s||'').replace(/[<>]/g,'');
-let db,currentId=null,editingId=null,tempAttachments=[],tempSignature=null,deferredPrompt=null;
+let db,currentId=null,editingId=null,tempAttachments=[],tempSignature=null,deferredPrompt=null,previewReceiptId=null;
 let state={meta:{placeDate:'',period:'',responsible:'ANDRES GUTIERREZ BECERRA',area:'OPERACIONES',position:'COPILOTO',aircraft:'HK4900',cardNumber:'',initialBalance:1000000,secondDeposit:0,observations:''},movements:[],updatedAt:new Date().toISOString()};
 if(window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
 
@@ -20,7 +20,36 @@ function totals(){const spent=state.movements.reduce((a,b)=>a+(+b.amount||0),0),
 function syncMetaToForm(){Object.keys(state.meta).forEach(k=>{const el=$('#'+k);if(el)el.value=state.meta[k]??''});$('#boxTitle').textContent=`${state.meta.aircraft||'Sin aeronave'} · ${state.meta.period||'Caja actual'}`}
 function syncMetaFromForm(){Object.keys(state.meta).forEach(k=>{const el=$('#'+k);if(el)state.meta[k]=el.type==='number'?+el.value:el.value});persistDraft();render()}
 function render(){const t=totals();$('#mInitial').textContent=money(t.initial);$('#mSpent').textContent=money(t.spent);$('#mBalance').textContent=money(t.balance);$('#mCount').textContent=state.movements.length;$('#boxTitle').textContent=`${state.meta.aircraft||'Sin aeronave'} · ${state.meta.period||'Caja actual'}`;renderMovements()}
-function renderMovements(){const box=$('#movementList'),filter=$('#filter').value;let arr=[...state.movements].sort((a,b)=>(a.date+a.createdAt).localeCompare(b.date+b.createdAt));if(filter==='pending')arr=arr.filter(x=>!x.attachments?.length||(x.support==='Recibo de Caja'&&!x.signature));if(filter==='receipt')arr=arr.filter(x=>x.support==='Recibo de Caja');if(filter==='invoice')arr=arr.filter(x=>x.support==='Factura');box.innerHTML='';if(!arr.length){box.innerHTML='<p class="muted">Todavía no hay movimientos en esta vista.</p>';return}for(const x of arr){const d=document.createElement('article');d.className='movement';const supportOk=x.attachments?.length||x.support==='Recibo de Caja';const signOk=x.support!=='Recibo de Caja'||!!x.signature;d.innerHTML=`<div><div class="title">${safe(x.detail||x.category)} · ${safe(x.thirdParty||'Sin tercero')}</div><div class="meta">${fmtDate(x.date)} · ${safe(x.city)} · ${safe(x.support)}</div><div class="badges"><span class="badge ${supportOk?'ok':'warn'}">${supportOk?'Soporte listo':'Falta soporte'}</span>${x.support==='Recibo de Caja'?`<span class="badge ${signOk?'ok':'warn'}">${signOk?'Firmado':'Falta firma'}</span>`:''}</div></div><div class="amount">${money(x.amount)}</div><div class="actions"><button data-edit>Editar</button><button data-copy>Duplicar</button><button data-delete class="danger">Eliminar</button></div>`;d.querySelector('[data-edit]').onclick=()=>openExpense(x.id);d.querySelector('[data-copy]').onclick=()=>{const c=structuredClone(x);c.id=uid();c.createdAt=new Date().toISOString();c.signature=null;state.movements.push(c);persistDraft();render();toast('Movimiento duplicado')};d.querySelector('[data-delete]').onclick=async()=>{if(confirm('¿Eliminar este movimiento?')){state.movements=state.movements.filter(m=>m.id!==x.id);await persistDraft();render()}};box.appendChild(d)}}
+function movementStatus(x){
+  const isReceipt=x.support==='Recibo de Caja';
+  const receiptOk=isReceipt;
+  const signOk=!isReceipt||!!x.signature;
+  const supportOk=isReceipt||!!x.attachments?.length;
+  const complete=receiptOk&&signOk&&supportOk || (!isReceipt&&supportOk);
+  return{isReceipt,receiptOk,signOk,supportOk,complete};
+}
+function renderMovements(){
+  const box=$('#movementList'),filter=$('#filter').value;
+  let arr=[...state.movements].sort((a,b)=>(a.date+a.createdAt).localeCompare(b.date+b.createdAt));
+  if(filter==='pending')arr=arr.filter(x=>!movementStatus(x).complete);
+  if(filter==='receipt')arr=arr.filter(x=>x.support==='Recibo de Caja');
+  if(filter==='invoice')arr=arr.filter(x=>x.support==='Factura');
+  box.innerHTML='';
+  if(!arr.length){box.innerHTML='<p class="muted">Todavía no hay movimientos en esta vista.</p>';return}
+  for(const x of arr){
+    const s=movementStatus(x),d=document.createElement('article');
+    d.className=`movement${s.complete?' complete':''}`;
+    const idLabel=/nit|rut/i.test(x.idType||'')?'NIT':'CC';
+    d.innerHTML=`<div><div class="title">${safe(x.detail||x.category)}</div><div class="person">${safe(x.thirdParty||'Sin tercero')}</div><div class="idline">${x.idNumber?`${idLabel} ${safe(x.idNumber)} · `:''}${fmtDate(x.date)} · ${safe(x.city)}</div><div class="meta">${safe(x.support)} · ${safe(x.category)}</div><div class="badges">${s.isReceipt?`<span class="badge ok">Recibo</span><span class="badge ${s.signOk?'ok':'warn'}">${s.signOk?'Firma lista':'Falta firma'}</span>`:`<span class="badge ${s.supportOk?'ok':'warn'}">${s.supportOk?'Soporte listo':'Falta soporte'}</span>`}${s.complete?'<span class="badge complete">✓ Movimiento completo</span>':''}</div></div><div class="amount">${money(x.amount)}</div><div class="actions">${s.isReceipt?'<button data-receipt class="primary-action">📄 Recibo</button><button data-sign>✍ Firmar</button>':'<button data-scan>📷 Escanear</button>'}<button data-edit>Editar</button><button data-copy>Duplicar</button><button data-delete class="danger">Eliminar</button></div>`;
+    d.querySelector('[data-edit]').onclick=()=>openExpense(x.id);
+    d.querySelector('[data-receipt]')?.addEventListener('click',()=>openReceiptPreview(x.id));
+    d.querySelector('[data-sign]')?.addEventListener('click',()=>openExpenseAction(x.id,'sign'));
+    d.querySelector('[data-scan]')?.addEventListener('click',()=>openExpenseAction(x.id,'scan'));
+    d.querySelector('[data-copy]').onclick=()=>{const c=structuredClone(x);c.id=uid();c.createdAt=new Date().toISOString();c.signature=null;state.movements.push(c);persistDraft();render();toast('Movimiento duplicado')};
+    d.querySelector('[data-delete]').onclick=async()=>{if(confirm('¿Eliminar este movimiento?')){state.movements=state.movements.filter(m=>m.id!==x.id);await persistDraft();render()}};
+    box.appendChild(d)
+  }
+}
 
 function showView(id){$$('.view').forEach(v=>v.classList.toggle('active',v.id===id));$$('.bottom-nav button').forEach(b=>b.classList.toggle('active',b.dataset.view===id));if(id==='historyView')renderHistory()}
 $$('.bottom-nav button').forEach(b=>b.onclick=()=>showView(b.dataset.view));
@@ -28,6 +57,7 @@ $$('.bottom-nav button').forEach(b=>b.onclick=()=>showView(b.dataset.view));
 function resetExpense(){editingId=null;tempAttachments=[];tempSignature=null;$('#expenseTitle').textContent='Añadir gasto';$('#eDate').value=today();$('#eCity').value=state.movements.at(-1)?.city||'';$('#eSupport').value='Recibo de Caja';$('#eCategory').value='Transporte';$('#eDetail').value='';$('#eThirdParty').value='';$('#eIdType').value='Cédula de Ciudadanía';$('#eIdNumber').value='';$('#eAmount').value='';renderAttachmentPreview();renderSignatureStatus()}
 function openExpense(id=null){resetExpense();if(id){const x=state.movements.find(m=>m.id===id);if(!x)return;editingId=id;$('#expenseTitle').textContent='Editar gasto';$('#eDate').value=x.date;$('#eCity').value=x.city;$('#eSupport').value=x.support;$('#eCategory').value=x.category;$('#eDetail').value=x.detail;$('#eThirdParty').value=x.thirdParty;$('#eIdType').value=x.idType;$('#eIdNumber').value=x.idNumber;$('#eAmount').value=x.amount;tempAttachments=structuredClone(x.attachments||[]);tempSignature=x.signature||null;renderAttachmentPreview();renderSignatureStatus()}$('#expenseModal').classList.remove('hidden')}
 $('#quickAdd').onclick=()=>openExpense();$('#closeExpense').onclick=()=>$('#expenseModal').classList.add('hidden');
+function openExpenseAction(id,action){openExpense(id);setTimeout(()=>{if(action==='sign')$('#signReceipt').click();if(action==='scan')$('#eFiles').click()},180)}
 $$('.quick-types button').forEach(b=>b.onclick=()=>{$('#eCategory').value=b.dataset.cat;$('#eDetail').value=b.dataset.desc});
 function renderSignatureStatus(){$('#signatureStatus').textContent=$('#eSupport').value==='Recibo de Caja'?(tempSignature?'Firma guardada para este recibo.':'Este recibo aún no tiene firma.'):'La firma solo aplica a Recibos de Caja.'}
 $('#eSupport').onchange=renderSignatureStatus;
@@ -85,6 +115,26 @@ function drawReceipt(doc,x,y,w,h,item,num,logo){
   const sigY=yy+bottomH-4;if(item.signature)doc.addImage(item.signature,'PNG',x+leftW+18,yy+1,w-leftW-22,bottomH-5);doc.line(x+leftW+2,sigY,x+w-2,sigY);
   doc.setFont('helvetica','normal');doc.setFontSize(4.8);const isNit=/nit|rut/i.test(item.idType||'');doc.text(isNit?'NIT:':'C.C.:',x+leftW+2,yy+bottomH-1.2);fit(doc,item.idNumber,x+leftW+13,yy+bottomH-1.2,w-leftW-16,1,5.2);
 }
+function receiptNumber(item){const sorted=[...state.movements].filter(x=>x.support==='Recibo de Caja').sort((a,b)=>(a.date+a.createdAt).localeCompare(b.date+b.createdAt));return Math.max(1,sorted.findIndex(x=>x.id===item.id)+1)}
+function receiptHtml(item){
+  const d=new Date(item.date+'T00:00:00'),num=receiptNumber(item),idLabel=/nit|rut/i.test(item.idType||'')?'NIT':'C.C.';
+  return `<div class="receipt-paper"><div class="receipt-top"><div class="receipt-brand"><img src="assets/sis-logo.png" alt="SIS"></div><div class="receipt-title">RECIBO DE<br>CAJA MENOR</div></div><div class="receipt-grid"><div class="receipt-row receipt-date"><div><div class="receipt-label">Ciudad</div><div class="receipt-value">${safe(item.city)}</div></div><div><div class="receipt-label">Día</div><div class="receipt-value">${String(d.getDate()).padStart(2,'0')}</div></div><div><div class="receipt-label">Mes</div><div class="receipt-value">${String(d.getMonth()+1).padStart(2,'0')}</div></div><div><div class="receipt-label">Año</div><div class="receipt-value">${d.getFullYear()}</div></div><div><div class="receipt-label">No.</div><div class="receipt-value">RC-${String(num).padStart(3,'0')}</div></div></div><div class="receipt-row receipt-paid"><div><div class="receipt-label">Pagado a</div><div class="receipt-value">${safe(item.thirdParty)}</div></div><div><div class="receipt-label">Valor</div><div class="receipt-amount">${money(item.amount)}</div></div></div><div class="receipt-row receipt-one"><div><div class="receipt-label">Concepto</div><div class="receipt-value">${safe(item.detail||item.category)}</div></div></div><div class="receipt-row receipt-one receipt-words"><div><div class="receipt-label">Valor en letras</div><div class="receipt-value">${words(item.amount)} PESOS M/CTE</div></div></div><div class="receipt-row receipt-bottom"><div class="receipt-bottom-left"><div><div class="receipt-label">Código</div><div class="receipt-value"></div></div><div><div class="receipt-label">Aprobado</div><div class="receipt-value"></div></div></div><div class="receipt-signature"><div class="receipt-label">Firma de recibido</div>${item.signature?`<img src="${item.signature}" alt="Firma">`:'<div class="receipt-value receipt-missing">Falta firma</div>'}<div class="receipt-sign-line">${idLabel}: ${safe(item.idNumber)}</div></div></div></div></div>`;
+}
+function openReceiptPreview(id){
+  const item=state.movements.find(x=>x.id===id);if(!item)return;
+  if(item.support!=='Recibo de Caja')return alert('Este movimiento no corresponde a un Recibo de Caja.');
+  previewReceiptId=id;$('#receiptPreview').innerHTML=receiptHtml(item);$('#receiptModal').classList.remove('hidden');
+}
+$('#closeReceipt').onclick=()=>$('#receiptModal').classList.add('hidden');
+$('#receiptEdit').onclick=()=>{const id=previewReceiptId;$('#receiptModal').classList.add('hidden');openExpense(id)};
+$('#receiptDownload').onclick=async()=>{
+  const item=state.movements.find(x=>x.id===previewReceiptId);if(!item)return;
+  if(!item.signature&&!confirm('Este recibo todavía no tiene firma. ¿Descargar de todas formas?'))return;
+  const {jsPDF}=window.jspdf,doc=new jsPDF({unit:'mm',format:'a4',compress:true}),logo=await logoData();
+  addHeader(doc,'RECIBO DE CAJA MENOR',logo,1);drawReceipt(doc,15,32,180,125,item,receiptNumber(item),logo);
+  doc.save(`Recibo_RC-${String(receiptNumber(item)).padStart(3,'0')}_${item.thirdParty||'SIS'}_${item.date}.pdf`);
+};
+
 async function imgDim(src){return new Promise(ok=>{const im=new Image();im.onload=()=>ok({w:im.width,h:im.height});im.src=src})}
 $('#exportPdf').onclick=async()=>{if(!state.movements.length)return alert('No hay movimientos.');syncMetaFromForm();const missing=state.movements.filter(x=>(x.support==='Recibo de Caja'&&!x.signature)||(!x.attachments?.length&&x.support!=='Recibo de Caja'));if(missing.length&&!confirm(`Hay ${missing.length} movimiento(s) con firma o soporte pendiente. ¿Generar de todas formas?`))return;const {jsPDF}=window.jspdf,doc=new jsPDF({unit:'mm',format:'a4',compress:true}),logo=await logoData(),all=[...state.movements].sort((a,b)=>(a.date+a.createdAt).localeCompare(b.date+b.createdAt));drawScof(doc,all,logo);let page=1,receipts=all.filter(x=>x.support==='Recibo de Caja');for(let i=0;i<receipts.length;){doc.addPage();addHeader(doc,'RECIBOS DE CAJA MENOR',logo,++page);const group=receipts.slice(i,i+4),three=group.some(x=>(x.detail||'').length>100),count=three?3:4,h=three?82:63;for(let j=0;j<count&&i<receipts.length;j++,i++){const col=j%2,row=Math.floor(j/2),x=10+col*96,y=26+row*(h+4);drawReceipt(doc,x,y,91,h,receipts[i],i+1,logo)}}for(const [idx,x] of all.entries()){for(const a of x.attachments||[]){for(let p=0;p<a.pages.length;p++){doc.addPage();addHeader(doc,`SOPORTE ${idx+1} - ${x.support.toUpperCase()}`,logo,++page);doc.setFont('helvetica','normal');doc.setFontSize(7);fit(doc,`${fmtDate(x.date)} | ${x.thirdParty||''} | ${x.detail||x.category} | ${money(x.amount)} | ${a.name}${a.pages.length>1?` - Página ${p+1}/${a.pages.length}`:''}`,12,28,186,2,7);const dim=await imgDim(a.pages[p]),ratio=Math.min(186/dim.w,250/dim.h),w=dim.w*ratio,h=dim.h*ratio;doc.addImage(a.pages[p],'JPEG',105-w/2,35,w,h,undefined,'FAST')}}}doc.save(`SIS_Caja_Menor_${state.meta.aircraft||'SCOF01'}_${today()}.pdf`);await archiveCurrent()};
 

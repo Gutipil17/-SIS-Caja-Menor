@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="SIS Caja Menor">
-  <title>SIS Caja Menor v1.2</title>
+  <title>SIS Caja Menor v1.3</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="assets/icon-192.png">
   <link rel="stylesheet" href="styles.css">
@@ -18,7 +18,7 @@
 <body>
 <header class="topbar">
   <img src="assets/sis-logo.png" alt="SIS" class="logo">
-  <div><h1>SIS Caja Menor</h1><p id="boxTitle">Caja actual</p><small class="version">v1.2</small></div>
+  <div><h1>SIS Caja Menor</h1><p id="boxTitle">Caja actual</p><small class="version">v1.3</small></div>
   <button id="installBtn" class="ghost hidden">Instalar</button>
 </header>
 
@@ -102,6 +102,15 @@
     <p class="muted">Firme con el dedo en iPhone o con Apple Pencil en iPad.</p>
     <canvas id="signatureCanvas"></canvas>
     <div class="button-row"><button id="clearSignature">Borrar</button><button id="confirmSignature" class="primary">Confirmar firma</button></div>
+  </div>
+</div>
+
+
+<div id="receiptModal" class="modal hidden">
+  <div class="sheet receipt-sheet">
+    <div class="sheet-head"><h2>Vista previa del recibo</h2><button id="closeReceipt" class="ghost">Cerrar</button></div>
+    <div id="receiptPreview" class="receipt-preview"></div>
+    <div class="button-row"><button id="receiptEdit">Editar datos</button><button id="receiptDownload" class="primary">Descargar recibo PDF</button></div>
   </div>
 </div>
 
