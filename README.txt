@@ -40,3 +40,10 @@ CAMBIOS v1.4
 - Descarga individual de las imágenes del soporte.
 - Indicador del número de páginas adjuntas.
 - Conserva todas las funciones y datos de v1.3.
+
+CAMBIOS v1.5
+- Botón “Actualizar” visible dentro de la aplicación.
+- Verificación manual y automática de nuevas versiones.
+- Instalación controlada del nuevo service worker.
+- Recarga automática cuando la actualización queda activa.
+- Consulta de version.json sin caché para detectar publicaciones nuevas.

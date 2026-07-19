@@ -161,3 +161,83 @@ $('#restore').onchange=async e=>{try{const p=JSON.parse(await e.target.files[0].
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredPrompt=e;$('#installBtn').classList.remove('hidden')});$('#installBtn').onclick=async()=>{if(deferredPrompt){deferredPrompt.prompt();await deferredPrompt.userChoice;deferredPrompt=null;$('#installBtn').classList.add('hidden')}else alert('En iPhone: abra Compartir y pulse “Añadir a pantalla de inicio”.')};
 if('serviceWorker' in navigator)navigator.serviceWorker.register('./service-worker.js').catch(()=>{});
 openDB().then(async()=>{const d=await get('draft','current');if(d)state=d;syncMetaToForm();render()}).catch(e=>alert('No se pudo iniciar el almacenamiento local: '+e.message));
+
+// Administrador de actualizaciones v1.5
+const APP_VERSION='1.5';
+let swRegistration=null;
+let updateReloadPending=false;
+
+function compareVersions(a,b){
+  const pa=String(a).split('.').map(n=>parseInt(n,10)||0),pb=String(b).split('.').map(n=>parseInt(n,10)||0);
+  for(let i=0;i<Math.max(pa.length,pb.length);i++){
+    const d=(pa[i]||0)-(pb[i]||0);
+    if(d!==0)return d;
+  }
+  return 0;
+}
+
+async function activateWaitingWorker(registration){
+  if(!registration?.waiting)return false;
+  updateReloadPending=true;
+  registration.waiting.postMessage({type:'SKIP_WAITING'});
+  return true;
+}
+
+async function checkForAppUpdate({manual=false}={}){
+  const button=$('#updateBtn');
+  if(button){button.classList.add('updating');button.textContent='Buscando…'}
+  try{
+    const response=await fetch(`./version.json?t=${Date.now()}`,{cache:'no-store'});
+    if(!response.ok)throw new Error('No se pudo consultar la versión publicada');
+    const published=await response.json();
+    const registration=swRegistration||await navigator.serviceWorker?.getRegistration('./');
+    if(registration)await registration.update();
+
+    if(registration?.waiting){
+      if(confirm(`Está disponible la versión ${published.version||'nueva'}. ¿Actualizar ahora?`)){
+        await activateWaitingWorker(registration);
+        toast('Instalando actualización…');
+      }
+      return;
+    }
+
+    if(compareVersions(published.version,APP_VERSION)>0){
+      toast(`Nueva versión ${published.version} detectada. Preparando actualización…`);
+      if(registration){
+        await new Promise(resolve=>setTimeout(resolve,1200));
+        if(registration.waiting){
+          if(confirm(`La versión ${published.version} está lista. ¿Instalarla ahora?`))await activateWaitingWorker(registration);
+        }else if(manual){
+          alert('La actualización fue detectada. Cierre y abra la aplicación nuevamente en unos segundos.');
+        }
+      }
+    }else if(manual){
+      alert(`La aplicación está actualizada. Versión instalada: v${APP_VERSION}.`);
+    }
+  }catch(error){
+    if(manual)alert(`No fue posible verificar la actualización. Revise la conexión a internet y vuelva a intentarlo.\n\n${error.message}`);
+  }finally{
+    if(button){button.classList.remove('updating');button.textContent='Actualizar'}
+  }
+}
+
+$('#updateBtn').onclick=()=>checkForAppUpdate({manual:true});
+
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.addEventListener('controllerchange',()=>{
+    if(updateReloadPending){updateReloadPending=false;window.location.reload()}
+  });
+  navigator.serviceWorker.ready.then(registration=>{
+    swRegistration=registration;
+    registration.addEventListener('updatefound',()=>{
+      const worker=registration.installing;
+      if(!worker)return;
+      worker.addEventListener('statechange',()=>{
+        if(worker.state==='installed'&&navigator.serviceWorker.controller){
+          toast('Nueva actualización lista. Pulse “Actualizar”.');
+        }
+      });
+    });
+    setTimeout(()=>checkForAppUpdate(),2500);
+  }).catch(()=>{});
+}
