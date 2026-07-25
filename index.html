@@ -4,18 +4,20 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
   <meta name="theme-color" content="#0f2742">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'">
+  <meta name="referrer" content="no-referrer">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="SIS Caja Menor">
-  <title>SIS Gastos v1.7.9</title>
+  <title>SIS Gastos v1.9.3</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png">
   <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
   <link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16.png">
   <link rel="stylesheet" href="styles.css">
-  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+  <script src="vendor/jspdf.umd.min.js"></script>
+  <script src="vendor/exceljs.min.js"></script>
+  <script src="vendor/pdf.min.js"></script>
 </head>
 <body>
 <section id="moduleChooser" class="module-chooser">
@@ -32,7 +34,7 @@
 <div id="appShell" class="hidden">
 <header class="topbar">
   <img src="assets/sis-logo.png" alt="SIS" class="logo">
-  <div><h1 id="appTitle">SIS Gastos</h1><p id="boxTitle">Caja actual</p><small class="version">v1.7.9</small></div>
+  <div><h1 id="appTitle">SIS Gastos</h1><p id="boxTitle">Caja actual</p><small class="version">v1.9.3</small></div>
   <div class="topbar-actions">
     <button id="switchModuleBtn" class="ghost">Cambiar módulo</button>
     <button id="updateBtn" class="ghost">Actualizar</button>
@@ -62,7 +64,7 @@
       <h2 id="reportDataTitle">Datos del informe</h2>
       <div class="form-grid">
         <label>Lugar<input id="placeDate" placeholder="Ej. Bogotá"></label>
-        <label>Aeronave<select id="aircraft"><option>HK3779</option><option>HK4692</option><option>HK5334</option><option>HK3882</option><option>HK3911</option><option>HK4900</option><option value="OTHER">Otra aeronave</option></select></label>
+        <label>Aeronave<select id="aircraft"><option value="">Seleccione</option><option value="OTHER">Escribir aeronave</option></select></label>
         <label id="customAircraftWrap" class="hidden">Otra aeronave<input id="customAircraft" placeholder="Ej. HK1234"></label>
         <label>Fecha inicial<input id="startDate" type="date"></label>
         <label>Fecha final<input id="endDate" type="date"></label>
@@ -83,10 +85,10 @@
       <div class="button-stack"><button id="previewExcel">Vista previa del Excel</button><button id="exportExcel">Generar Excel oficial</button><button id="exportPdf" class="primary">Generar PDF completo</button><button id="backup">Crear copia de seguridad</button><label class="file-btn">Restaurar copia<input id="restore" type="file" accept="application/json"></label></div>
     </div>
     <div class="card about-card">
-      <div class="section-head"><h2>Acerca de / Actualizaciones</h2><span id="updateState" class="badge ok">v1.7.9</span></div>
-      <div class="about-grid"><div><small>Versión instalada</small><strong>v1.7.9</strong></div><div><small>Fecha de compilación</small><strong>19/07/2026</strong></div><div><small>Estado</small><strong id="aboutStatus">Lista para verificar</strong></div></div>
+      <div class="section-head"><h2>Acerca de / Actualizaciones</h2><span id="updateState" class="badge ok">v1.9.3</span></div>
+      <div class="about-grid"><div><small>Versión instalada</small><strong>v1.9.3</strong></div><div><small>Fecha de compilación</small><strong>24/07/2026</strong></div><div><small>Estado</small><strong id="aboutStatus">Lista para verificar</strong></div></div>
       <button id="aboutUpdateBtn">Buscar actualizaciones</button>
-      <details><summary>Historial de cambios</summary><div class="changelog"><strong>v1.7.9</strong><p>Alineación contable verificada, hoja carta horizontal con margen estrecho y tipografía legible en recibos.</p><strong>v1.7.1</strong><p>Formatos oficiales y PDF horizontal.</p><strong>v1.6.2</strong><p>Corrección y pruebas de las cinco funciones de salida final.</p><strong>v1.6</strong><p>Aeronave configurable, fechas de comisión, saldo editable, vista previa del Excel y panel de actualización.</p><strong>v1.5</strong><p>Administrador de actualizaciones.</p><strong>v1.4</strong><p>Captura rápida y galería de soportes.</p></div></details>
+      <details><summary>Historial de cambios</summary><div class="changelog"><strong>v1.9.3</strong><p>Se eliminó la hoja adicional de detalle; el PDF contiene únicamente el formato oficial, recibos y soportes.</p><strong>v1.9.2</strong><p>Concepto y descripción más legibles; Excel oficial inalterado.</p><strong>v1.9.1</strong><p>Cuatro recibos profesionales por hoja para ahorrar papel.</p></div></details>
     </div>
   </section>
 

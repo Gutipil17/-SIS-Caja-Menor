@@ -4,12 +4,12 @@ const money=n=>new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',ma
 const uid=()=>crypto.randomUUID?crypto.randomUUID():`${Date.now()}-${Math.random()}`;
 const today=()=>new Date().toISOString().slice(0,10);
 const fmtDate=s=>{if(!s)return'';const [y,m,d]=s.split('-');return `${d}/${m}/${y}`};
-const safe=s=>String(s||'').replace(/[<>]/g,'');
+const safe=s=>String(s??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 let db,currentId=null,editingId=null,tempAttachments=[],tempSignature=null,deferredPrompt=null,previewReceiptId=null,previewSupportId=null;
 let activeModule=null;
-function defaultState(module='caja'){return{meta:{reportType:module,placeDate:'',period:'',startDate:'',endDate:'',responsible:'ANDRES GUTIERREZ BECERRA',area:'OPERACIONES',position:'COPILOTO',aircraft:'HK4900',customAircraft:'',cardNumber:'',initialBalance:module==='caja'?1000000:0,secondDeposit:0,observations:''},movements:[],updatedAt:new Date().toISOString()}}
+function defaultState(module='caja'){return{meta:{reportType:module,placeDate:'',period:'',startDate:'',endDate:'',responsible:'',area:'',position:'',aircraft:'',customAircraft:'',cardNumber:'',initialBalance:0,secondDeposit:0,observations:''},movements:[],updatedAt:new Date().toISOString()}}
 let state=defaultState('caja');
-if(window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+if(window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc='./vendor/pdf.worker.min.js';
 
 function toast(msg){const t=$('#toast');t.textContent=msg;t.classList.remove('hidden');setTimeout(()=>t.classList.add('hidden'),2400)}
 function openDB(){return new Promise((ok,fail)=>{const r=indexedDB.open('SIS_Caja_Menor',1);r.onupgradeneeded=()=>{const d=r.result;if(!d.objectStoreNames.contains('boxes'))d.createObjectStore('boxes',{keyPath:'id'});if(!d.objectStoreNames.contains('draft'))d.createObjectStore('draft');};r.onsuccess=()=>{db=r.result;ok()};r.onerror=()=>fail(r.error)})}
@@ -22,7 +22,7 @@ function totals(){const spent=state.movements.reduce((a,b)=>a+(+b.amount||0),0),
 function isViaticos(){return activeModule==='viaticos'}
 function reportName(){return isViaticos()?'Viáticos':'Caja Menor'}
 function reportSlug(){return isViaticos()?'Viaticos':'Caja_Menor'}
-function updateReportUI(){const name=reportName();if($('#appTitle'))$('#appTitle').textContent=`SIS ${name}`;if($('#reportDataTitle'))$('#reportDataTitle').textContent=`Datos de ${name.toLowerCase()}`;if($('#outputHelp'))$('#outputHelp').textContent=`Genera exclusivamente el Excel oficial y el PDF de ${name}, con sus propios movimientos, recibos, firmas y soportes.`;document.title=`SIS ${name} v1.7.9`;const quick=$('#quickAdd');if(quick)quick.textContent=`+ Añadir gasto de ${name}`;const labels=$$('.metric span');if(labels[0])labels[0].textContent=`Saldo inicial ${name}`;if(labels[1])labels[1].textContent=`Gastado ${name}`;if(labels[2])labels[2].textContent=isViaticos()?'Saldo final Viáticos':'Disponible Caja Menor';if($('#exportExcel'))$('#exportExcel').textContent=`Generar Excel de ${name}`;if($('#exportPdf'))$('#exportPdf').textContent=`Generar PDF de ${name}`;if($('#previewExcel'))$('#previewExcel').textContent=`Vista previa de ${name}`;if($('#historyView h2'))$('#historyView h2').textContent=`Historial de ${name}`;$('#secondDepositWrap')?.classList.toggle('hidden',isViaticos());}
+function updateReportUI(){const name=reportName();if($('#appTitle'))$('#appTitle').textContent=`SIS ${name}`;if($('#reportDataTitle'))$('#reportDataTitle').textContent=`Datos de ${name.toLowerCase()}`;if($('#outputHelp'))$('#outputHelp').textContent=`Genera exclusivamente el Excel oficial y el PDF de ${name}, con sus propios movimientos, recibos, firmas y soportes.`;document.title=`SIS ${name} v1.9.3`;const quick=$('#quickAdd');if(quick)quick.textContent=`+ Añadir gasto de ${name}`;const labels=$$('.metric span');if(labels[0])labels[0].textContent=`Saldo inicial ${name}`;if(labels[1])labels[1].textContent=`Gastado ${name}`;if(labels[2])labels[2].textContent=isViaticos()?'Saldo final Viáticos':'Disponible Caja Menor';if($('#exportExcel'))$('#exportExcel').textContent=`Generar Excel de ${name}`;if($('#exportPdf'))$('#exportPdf').textContent=`Generar PDF de ${name}`;if($('#previewExcel'))$('#previewExcel').textContent=`Vista previa de ${name}`;if($('#historyView h2'))$('#historyView h2').textContent=`Historial de ${name}`;$('#secondDepositWrap')?.classList.toggle('hidden',isViaticos());}
 function normalizeAircraft(value){return String(value||'').toUpperCase().replace(/[^A-Z0-9-]/g,'').replace(/^HK-?/, 'HK')}
 function formatPeriod(start,end){if(!start||!end)return '';const a=new Date(`${start}T00:00:00`),b=new Date(`${end}T00:00:00`);if(Number.isNaN(a)||Number.isNaN(b))return '';const months=['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];if(a.getFullYear()===b.getFullYear()&&a.getMonth()===b.getMonth())return `DEL ${String(a.getDate()).padStart(2,'0')} AL ${String(b.getDate()).padStart(2,'0')} DE ${months[a.getMonth()]} DE ${a.getFullYear()}`;return `DEL ${fmtDate(start)} AL ${fmtDate(end)}`}
 function dateInPeriod(date){
@@ -47,11 +47,17 @@ function refreshMetaFromVisibleForm(){
 function validateCommission({requireDates=false,requireMovements=false}={}){
   refreshMetaFromVisibleForm();
   if(!state.meta.aircraft)return 'Seleccione o escriba la aeronave.';
+  if(!String(state.meta.placeDate||'').trim())return 'Complete el lugar del informe.';
+  if(!String(state.meta.responsible||'').trim())return 'Complete el nombre de la persona responsable.';
   if(requireDates&&(!state.meta.startDate||!state.meta.endDate))return 'Seleccione la fecha inicial y la fecha final de la comisión.';
   if(state.meta.startDate&&state.meta.endDate&&state.meta.endDate<state.meta.startDate)return 'La fecha final no puede ser anterior a la fecha inicial.';
   if(!Number.isFinite(Number(state.meta.initialBalance))||Number(state.meta.initialBalance)<0)return 'El saldo inicial debe ser un valor válido igual o mayor que cero.';
   if(!Number.isFinite(Number(state.meta.secondDeposit))||Number(state.meta.secondDeposit)<0)return 'El segundo depósito debe ser un valor válido igual o mayor que cero.';
   if(requireMovements&&!state.movements.length)return 'No hay movimientos registrados para generar la salida.';
+  const capacity=isViaticos()?30:43;
+  if(state.movements.length>capacity)return `El formato oficial admite máximo ${capacity} movimientos. Este informe tiene ${state.movements.length}; divídalo antes de exportar para evitar que se pierdan datos.`;
+  if(state.movements.some(x=>!dateInPeriod(x.date)))return 'Hay movimientos fuera del periodo. Corrija las fechas antes de generar la salida final.';
+  if(totals().balance<0)return 'Los gastos superan los fondos disponibles. Revise el saldo y los movimientos antes de exportar.';
   return '';
 }
 function setButtonBusy(button,busy,label){
@@ -60,15 +66,22 @@ function setButtonBusy(button,busy,label){
   else{button.disabled=false;button.textContent=button.dataset.originalText||button.textContent;delete button.dataset.originalText;}
 }
 function downloadBlob(blob,filename){
+  if(window.AndroidFiles?.saveBase64){
+    const reader=new FileReader();
+    reader.onload=()=>window.AndroidFiles.saveBase64(String(reader.result||'').split(',')[1]||'',filename,blob.type||'application/octet-stream');
+    reader.onerror=()=>alert('No fue posible preparar el archivo para guardarlo en Android.');
+    reader.readAsDataURL(blob);
+    return;
+  }
   const url=URL.createObjectURL(blob),a=document.createElement('a');
   a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();
   setTimeout(()=>URL.revokeObjectURL(url),1500);
 }
 
-function migrateState(){const module=activeModule||state.meta?.reportType||'caja';state.meta=state.meta||{};for(const [k,v] of Object.entries(defaultState(module).meta))if(state.meta[k]===undefined)state.meta[k]=v;state.meta.reportType=module;state.meta.aircraft=normalizeAircraft(state.meta.aircraft)||'HK4900';state.movements=(state.movements||[]).filter(x=>!x.reportType||x.reportType===module).map(x=>({...x,reportType:module}))}
+function migrateState(){const module=activeModule||state.meta?.reportType||'caja';state.meta=state.meta||{};for(const [k,v] of Object.entries(defaultState(module).meta))if(state.meta[k]===undefined)state.meta[k]=v;state.meta.reportType=module;state.meta.aircraft=normalizeAircraft(state.meta.aircraft);state.movements=(state.movements||[]).filter(x=>!x.reportType||x.reportType===module).map(x=>({...x,reportType:module,createdAt:x.createdAt||new Date().toISOString()}))}
 function selectedAircraft(){const sel=$('#aircraft');if(!sel)return state.meta.aircraft;return sel.value==='OTHER'?normalizeAircraft($('#customAircraft').value):normalizeAircraft(sel.value)}
 function updatePeriodUI(){const period=formatPeriod($('#startDate')?.value,$('#endDate')?.value);if($('#period'))$('#period').value=period;if($('#periodDisplay'))$('#periodDisplay').textContent=period||'Sin periodo definido';return period}
-function syncMetaToForm(){migrateState();const known=['HK3779','HK4692','HK5334','HK3882','HK3911','HK4900'];const aircraft=normalizeAircraft(state.meta.aircraft);if($('#aircraft'))$('#aircraft').value=known.includes(aircraft)?aircraft:'OTHER';if($('#customAircraft'))$('#customAircraft').value=known.includes(aircraft)?'':aircraft;$('#customAircraftWrap')?.classList.toggle('hidden',known.includes(aircraft));Object.keys(state.meta).forEach(k=>{if(k==='aircraft'||k==='customAircraft')return;const el=$('#'+k);if(el)el.value=state.meta[k]??''});if(!state.meta.period)state.meta.period=formatPeriod(state.meta.startDate,state.meta.endDate);updatePeriodUI();updateReportUI();$('#boxTitle').textContent=`${reportName()} · ${state.meta.aircraft||'Sin aeronave'} · ${state.meta.period||'Informe actual'}`}
+function syncMetaToForm(){migrateState();const aircraft=normalizeAircraft(state.meta.aircraft);if($('#aircraft'))$('#aircraft').value=aircraft?'OTHER':'';if($('#customAircraft'))$('#customAircraft').value=aircraft;$('#customAircraftWrap')?.classList.toggle('hidden',!aircraft);Object.keys(state.meta).forEach(k=>{if(k==='aircraft'||k==='customAircraft')return;const el=$('#'+k);if(el)el.value=state.meta[k]??''});if(!state.meta.period)state.meta.period=formatPeriod(state.meta.startDate,state.meta.endDate);updatePeriodUI();updateReportUI();$('#boxTitle').textContent=`${reportName()} · ${state.meta.aircraft||'Sin aeronave'} · ${state.meta.period||'Informe actual'}`}
 function syncMetaFromForm(){state.meta.aircraft=selectedAircraft();state.meta.customAircraft=$('#customAircraft')?.value||'';Object.keys(state.meta).forEach(k=>{if(k==='aircraft'||k==='customAircraft'||k==='period')return;const el=$('#'+k);if(el)state.meta[k]=el.type==='number'?+el.value:el.value});state.meta.period=updatePeriodUI();persistDraft();render()}
 function render(){updateReportUI();const t=totals();$('#mInitial').textContent=money(t.initial);$('#mSpent').textContent=money(t.spent);$('#mBalance').textContent=money(t.balance);$('#mCount').textContent=state.movements.length;$('#boxTitle').textContent=`${reportName()} · ${state.meta.aircraft||'Sin aeronave'} · ${state.meta.period||'Informe actual'}`;renderMovements()}
 function movementStatus(x){
@@ -119,7 +132,7 @@ async function imageCompressed(file){const src=await fileToDataURL(file);return 
 async function pdfPages(file){const data=await file.arrayBuffer(),pdf=await pdfjsLib.getDocument({data}).promise,pages=[];for(let i=1;i<=pdf.numPages;i++){const p=await pdf.getPage(i),vp=p.getViewport({scale:1.7}),c=document.createElement('canvas');c.width=vp.width;c.height=vp.height;await p.render({canvasContext:c.getContext('2d'),viewport:vp}).promise;pages.push(c.toDataURL('image/jpeg',.82))}return pages}
 $('#eFiles').onchange=async e=>{for(const f of [...e.target.files]){toast(`Procesando ${f.name}`);const pages=f.type==='application/pdf'?await pdfPages(f):[await imageCompressed(f)];tempAttachments.push({name:f.name,type:f.type,pages})}renderAttachmentPreview();e.target.value=''};
 function renderAttachmentPreview(){const box=$('#attachmentPreview');box.innerHTML='';tempAttachments.forEach((a,i)=>{const d=document.createElement('div');d.className='attachment-card';d.innerHTML=`<img src="${a.pages[0]}"><small>${safe(a.name)}${a.pages.length>1?` (${a.pages.length})`:''}</small><button class="danger">Quitar</button>`;d.querySelector('button').onclick=()=>{tempAttachments.splice(i,1);renderAttachmentPreview()};box.appendChild(d)})}
-$('#saveExpense').onclick=async()=>{const x={id:editingId||uid(),date:$('#eDate').value,city:$('#eCity').value.trim(),support:$('#eSupport').value,category:$('#eCategory').value,detail:$('#eDetail').value.trim(),thirdParty:$('#eThirdParty').value.trim(),idType:$('#eIdType').value,idNumber:$('#eIdNumber').value.trim(),amount:+$('#eAmount').value||0,attachments:tempAttachments,signature:$('#eSupport').value==='Recibo de Caja'?tempSignature:null,createdAt:editingId?(state.movements.find(m=>m.id===editingId)?.createdAt||new Date().toISOString()):new Date().toISOString(),reportType:activeModule};if(!x.date||!x.city||!x.detail||!x.amount)return alert('Complete fecha, ciudad, detalle y valor.');const isTaxi=x.category==='Transporte'&&/^taxi\b/i.test(x.detail);if(isTaxi&&(!x.thirdParty||!x.idNumber))return alert('Para gastos de taxi debe registrar el nombre del conductor y su número de cédula.');if(x.support==='Recibo de Caja'&&(!x.thirdParty||!x.idNumber))return alert('Todo recibo de caja debe incluir el nombre del beneficiario y su número de identificación.');if(!dateInPeriod(x.date)&&!confirm(`La fecha ${fmtDate(x.date)} está fuera del periodo ${state.meta.period||'definido'}. ¿Guardar de todas formas?`))return;if(editingId)state.movements=state.movements.map(m=>m.id===editingId?x:m);else state.movements.push(x);await persistDraft();$('#expenseModal').classList.add('hidden');render();toast('Gasto guardado')};
+$('#saveExpense').onclick=async()=>{const x={id:editingId||uid(),date:$('#eDate').value,city:$('#eCity').value.trim(),support:$('#eSupport').value,category:$('#eCategory').value,detail:$('#eDetail').value.trim(),thirdParty:$('#eThirdParty').value.trim(),idType:$('#eIdType').value,idNumber:$('#eIdNumber').value.trim(),amount:Number($('#eAmount').value),attachments:tempAttachments,signature:$('#eSupport').value==='Recibo de Caja'?tempSignature:null,createdAt:editingId?(state.movements.find(m=>m.id===editingId)?.createdAt||new Date().toISOString()):new Date().toISOString(),reportType:activeModule};if(!x.date||!x.city||!x.detail||!Number.isSafeInteger(x.amount)||x.amount<=0)return alert('Complete fecha, ciudad, detalle y un valor entero mayor que cero.');const isTaxi=x.category==='Transporte'&&/^taxi\b/i.test(x.detail);if(isTaxi&&(!x.thirdParty||!x.idNumber))return alert('Para gastos de taxi debe registrar el nombre del conductor y su número de cédula.');if(x.support==='Recibo de Caja'&&(!x.thirdParty||!x.idNumber))return alert('Todo recibo de caja debe incluir el nombre del beneficiario y su número de identificación.');if(!dateInPeriod(x.date)&&!confirm(`La fecha ${fmtDate(x.date)} está fuera del periodo ${state.meta.period||'definido'}. ¿Guardar de todas formas?`))return;if(editingId)state.movements=state.movements.map(m=>m.id===editingId?x:m);else state.movements.push(x);try{await persistDraft()}catch(error){return alert('No se pudo guardar el gasto. El almacenamiento del dispositivo puede estar lleno. Cree una copia de seguridad y libere espacio antes de continuar.')}$('#expenseModal').classList.add('hidden');render();toast('Gasto guardado')};
 
 // Firma táctil por recibo
 const sig=$('#signatureCanvas'),ctx=sig.getContext('2d');let drawing=false,last=null;
@@ -149,7 +162,7 @@ async function assetArrayBuffer(path){
 }
 function assetDataUrl(path){return embeddedAsset(path)||new URL(path,document.baseURI).href}
 function setAccountingCell(cell,value,{wrap=false,number=false,date=false}={}){
-  cell.value=value;
+  cell.value=typeof value==='string'&&!value.trim()?null:value;
   cell.alignment={...(cell.alignment||{}),vertical:'middle',horizontal:'center',wrapText:wrap,shrinkToFit:!wrap};
   if(date)cell.numFmt='dd/mm/yy';
   if(number)cell.numFmt='[$$-es-CO] #,##0';
@@ -160,7 +173,7 @@ function excelSerial(s){const d=new Date(`${s}T00:00:00`);return (d-Date.UTC(189
 $('#exportExcel').onclick=async()=>{
   const button=$('#exportExcel');setButtonBusy(button,true,'Generando Excel…');
   try{
-    const validation=validateCommission({requireDates:true});if(validation)return alert(validation);
+    const validation=validateCommission({requireDates:true,requireMovements:true});if(validation)return alert(validation);
     if(typeof ExcelJS==='undefined')throw new Error('No se cargó el generador de Excel. Verifique la conexión a internet y vuelva a abrir la aplicación.');
     const template=isViaticos()?'assets/plantilla_VIATICOS.xlsx':'assets/plantilla_SCOF01.xlsx';
     const buf=await assetArrayBuffer(template),wb=new ExcelJS.Workbook();await wb.xlsx.load(buf);
@@ -189,10 +202,46 @@ $('#exportExcel').onclick=async()=>{
 function logoData(){return Promise.resolve(assetDataUrl('assets/sis-logo.png'))}
 function words(n){const u=['','UNO','DOS','TRES','CUATRO','CINCO','SEIS','SIETE','OCHO','NUEVE','DIEZ','ONCE','DOCE','TRECE','CATORCE','QUINCE','DIECISÉIS','DIECISIETE','DIECIOCHO','DIECINUEVE','VEINTE'],t=['','','VEINTE','TREINTA','CUARENTA','CINCUENTA','SESENTA','SETENTA','OCHENTA','NOVENTA'],h=['','CIENTO','DOSCIENTOS','TRESCIENTOS','CUATROCIENTOS','QUINIENTOS','SEISCIENTOS','SETECIENTOS','OCHOCIENTOS','NOVECIENTOS'];function p(x){x=Math.floor(x);if(x===0)return'CERO';if(x===100)return'CIEN';if(x<21)return u[x];if(x<100)return t[Math.floor(x/10)]+(x%10?' Y '+u[x%10]:'');if(x<1000)return h[Math.floor(x/100)]+(x%100?' '+p(x%100):'');if(x<1e6)return (Math.floor(x/1000)===1?'MIL':p(Math.floor(x/1000))+' MIL')+(x%1000?' '+p(x%1000):'');if(x<1e9)return (Math.floor(x/1e6)===1?'UN MILLÓN':p(Math.floor(x/1e6))+' MILLONES')+(x%1e6?' '+p(x%1e6):'');return String(x)}return p(Number(n)||0)}
 function pageSize(doc){return{w:doc.internal.pageSize.getWidth(),h:doc.internal.pageSize.getHeight()}}
-function addHeader(doc,title,logo,page){const {w}=pageSize(doc);if(logo)doc.addImage(logo,'PNG',12,8,32,10);doc.setFont('helvetica','bold');doc.setTextColor(15,39,66);doc.setFontSize(12);doc.text(title,w/2,14,{align:'center'});doc.setFontSize(7);doc.text(`SIS SOLUCIONES INTEGRALES · ${state.meta.aircraft||''} · Página ${page}`,w-12,14,{align:'right'});doc.setDrawColor(15,39,66);doc.line(12,20,w-12,20);doc.setTextColor(0)}
+function addHeader(doc,title,logo,page){const {w,h}=pageSize(doc);if(logo)doc.addImage(logo,'PNG',12,7,30,10);doc.setFont('helvetica','bold');doc.setTextColor(15,39,66);doc.setFontSize(12);doc.text(title,w/2,13.5,{align:'center'});doc.setFontSize(7);doc.setFont('helvetica','normal');doc.text(`${state.meta.aircraft||reportName()} · ${state.meta.period||''}`,w-12,10.5,{align:'right'});doc.setDrawColor(15,39,66);doc.setLineWidth(.35);doc.line(12,20,w-12,20);doc.setFontSize(6.8);doc.setTextColor(80);doc.text('Documento generado localmente por SIS Gastos',12,h-5);doc.text(`Página ${page}`,w-12,h-5,{align:'right'});doc.setTextColor(0)}
 function fit(doc,text,x,y,w,max=2,size=7,style='normal'){doc.setFont('helvetica',style);doc.setFontSize(size);const lines=doc.splitTextToSize(String(text||''),w).slice(0,max);doc.text(lines,x,y)}
 function imageData(url){return Promise.resolve(assetDataUrl(url))}
 function createLandscapePdf(){const {jsPDF}=window.jspdf;return new jsPDF({orientation:'landscape',unit:'mm',format:'letter',compress:true})}
+function drawMovementDetailPages(doc,all,logo,startPage){
+  const ps=pageSize(doc),mx=12,top=27,bottom=13,W=ps.w-mx*2;
+  const widths=[22,29,33,46,31,25,50,19],headers=['FECHA','CIUDAD','SOPORTE','TERCERO','IDENTIFICACIÓN','CONCEPTO','DETALLE','VALOR'];
+  const rowH=12,headH=9,rowsPerPage=Math.max(1,Math.floor((ps.h-top-bottom-headH)/rowH));
+  let page=startPage;
+  for(let offset=0;offset<all.length;offset+=rowsPerPage){
+    doc.addPage('letter','landscape');addHeader(doc,`DETALLE DE MOVIMIENTOS - ${reportName().toUpperCase()}`,logo,++page);
+    const group=all.slice(offset,offset+rowsPerPage);let x=mx;
+    doc.setFillColor(15,39,66);doc.setDrawColor(190,200,210);doc.setTextColor(255);
+    widths.forEach((w,i)=>{doc.setFillColor(15,39,66);doc.setTextColor(255);doc.rect(x,top,w,headH,'FD');doc.setFont('helvetica','bold');doc.setFontSize(6.8);doc.text(headers[i],x+w/2,top+5.6,{align:'center'});x+=w;});
+    doc.setTextColor(0);
+    group.forEach((item,index)=>{
+      const y=top+headH+index*rowH;x=mx;
+      if(index%2===0){doc.setFillColor(246,249,252);doc.rect(mx,y,W,rowH,'F');}
+      const id=[item.idType,item.idNumber].filter(Boolean).join(' ');
+      const values=[fmtDate(item.date),item.city,item.support,item.thirdParty||'No suministrado',id||'No suministrado',item.category,receiptConcept(item),money(item.amount)];
+      widths.forEach((w,i)=>{doc.setDrawColor(205,212,220);doc.rect(x,y,w,rowH);doc.setFont('helvetica',i===6||i===7?'bold':'normal');doc.setFontSize(i===6?7.35:7.1);const lines=doc.splitTextToSize(String(values[i]||''),w-3).slice(0,2);const yy=y+(lines.length===1?7.2:5.1);doc.text(lines,i===7?x+w-1.5:x+1.5,yy,{align:i===7?'right':'left'});x+=w;});
+    });
+    doc.setFillColor(231,238,245);doc.rect(mx,ps.h-18,W,7,'F');doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(15,39,66);doc.text(`Movimientos ${offset+1}-${offset+group.length} de ${all.length}`,mx+2,ps.h-13.3);doc.text(`Total legalizado: ${money(totals().spent)}`,mx+W-2,ps.h-13.3,{align:'right'});doc.setTextColor(0);
+  }
+  return page;
+}
+async function drawSupportPage(doc,src,item,fileName,pageNumber,pageIndex,pageCount,logo){
+  const dim=await imgDim(src),ps=pageSize(doc),mx=12;
+  addHeader(doc,`SOPORTE ${pageNumber} - ${String(item.support||'DOCUMENTO').toUpperCase()}`,logo,pageNumber);
+  doc.setFillColor(239,244,249);doc.setDrawColor(182,194,205);doc.roundedRect(mx,25,ps.w-mx*2,18,2,2,'FD');
+  doc.setTextColor(15,39,66);doc.setFont('helvetica','bold');doc.setFontSize(8.2);
+  doc.text(`${fmtDate(item.date)} · ${item.city||''} · ${money(item.amount)}`,mx+3,31);
+  doc.setFont('helvetica','normal');doc.setFontSize(7.4);
+  const description=`${item.thirdParty||'No suministrado'} · ${receiptConcept(item)} · ${fileName}${pageCount>1?` · Hoja ${pageIndex+1} de ${pageCount}`:''}`;
+  doc.text(doc.splitTextToSize(description,ps.w-mx*2-6).slice(0,2),mx+3,36);
+  const frame={x:mx,y:47,w:ps.w-mx*2,h:ps.h-63};
+  doc.setFillColor(255);doc.setDrawColor(165,175,185);doc.roundedRect(frame.x,frame.y,frame.w,frame.h,1.5,1.5,'FD');
+  const inner=4,ratio=Math.min((frame.w-inner*2)/dim.w,(frame.h-inner*2)/dim.h),iw=dim.w*ratio,ih=dim.h*ratio;
+  doc.addImage(src,'JPEG',frame.x+(frame.w-iw)/2,frame.y+(frame.h-ih)/2,iw,ih,undefined,'FAST');
+}
 async function drawScof(doc,all,logo){
   // v1.7.7: formulario vectorial. No se superpone texto sobre una imagen.
   // Todas las líneas, celdas y textos se dibujan en el mismo sistema de coordenadas.
@@ -300,24 +349,25 @@ function pdfImageRect(doc,imgW,imgH){
 function pdfAt(rect,px,py){return{x:rect.x+px*rect.sx,y:rect.y+py*rect.sy}}
 function pdfWidth(rect,px){return px*rect.sx}
 function drawReceipt(doc,x,y,w,h,item,num,logo){
-  // Tamaño fijo: cuatro recibos por hoja carta horizontal. Nunca se amplía ni reduce.
-  const green=[42,145,38],pale=[242,247,239],line=[120,112,58];
+  // Recibo compacto profesional para impresión eficiente: cuadrícula 2 x 2.
+  const green=[42,145,38],navy=[15,39,66],pale=[240,245,249],line=[92,108,120];
   const headerH=17,dateH=10,paidH=10,conceptH=17,lettersH=15,bottomH=16;
   const totalH=headerH+dateH+paidH+conceptH+lettersH+bottomH;
   const baseY=y+(h-totalH)/2;
-  doc.setDrawColor(...line);doc.setLineWidth(.35);doc.roundedRect(x,baseY,w,totalH,1.5,1.5);
+  doc.setDrawColor(...line);doc.setLineWidth(.32);doc.roundedRect(x,baseY,w,totalH,1.5,1.5);
+  doc.setFillColor(...navy);doc.roundedRect(x,baseY,w,2.2,1.5,1.5,'F');
   if(logo)doc.addImage(logo,'PNG',x+3,baseY+2,25,8.5);
-  doc.setFillColor(...green);doc.roundedRect(x+w-47,baseY+2,44,13,1.3,1.3,'F');
-  doc.setTextColor(255);doc.setFont('helvetica','bold');doc.setFontSize(8.2);doc.text('RECIBO DE',x+w-25,baseY+7,{align:'center'});doc.text('CAJA MENOR',x+w-25,baseY+11.8,{align:'center'});doc.setTextColor(0);
+  doc.setFillColor(...green);doc.roundedRect(x+w-47,baseY+3,44,12,1.3,1.3,'F');
+  doc.setTextColor(255);doc.setFont('helvetica','bold');doc.setFontSize(8.0);doc.text('RECIBO DE',x+w-25,baseY+7.4,{align:'center'});doc.text('CAJA MENOR',x+w-25,baseY+11.8,{align:'center'});doc.setTextColor(...navy);
   const top=baseY+headerH,c1=x+w*.40,c2=x+w*.50,c3=x+w*.60,c4=x+w*.74;
   doc.rect(x,top,w,dateH);[c1,c2,c3,c4].forEach(xx=>doc.line(xx,top,xx,top+dateH));
-  doc.setFont('helvetica','bold');doc.setFontSize(7.3);doc.text('CIUDAD',x+2,top+3);doc.text('DÍA',c1+1.5,top+3);doc.text('MES',c2+1.5,top+3);doc.text('AÑO',c3+1.5,top+3);doc.text('No.',c4+1.5,top+3);
+  doc.setFont('helvetica','bold');doc.setFontSize(7.3);doc.text('CIUDAD',x+2,top+3);doc.text('DÍA',c1+1.5,top+3);doc.text('MES',c2+1.5,top+3);doc.text('AÑO',c3+1.5,top+3);doc.setTextColor(...green);doc.text('No.',c4+1.5,top+3);doc.setTextColor(...navy);
   const d=new Date(item.date+'T00:00:00');fit(doc,item.city,x+2,top+7.7,c1-x-4,1,8.8,'bold');doc.setFont('helvetica','bold');doc.setFontSize(8.3);doc.text(String(d.getDate()).padStart(2,'0'),c1+5,top+7.7);doc.text(String(d.getMonth()+1).padStart(2,'0'),c2+5,top+7.7);doc.text(String(d.getFullYear()),c3+4,top+7.7);doc.text(`RC-${String(num).padStart(3,'0')}`,c4+2,top+7.7);
   let yy=top+dateH;doc.rect(x,yy,w,paidH);doc.line(x+w*.72,yy,x+w*.72,yy+paidH);doc.setFont('helvetica','bold');doc.setFontSize(7.3);doc.text('PAGADO A',x+2,yy+3);doc.text('$',x+w*.74,yy+7.7);fit(doc,item.thirdParty,x+2,yy+7.7,w*.67,1,8.8,'bold');doc.setFont('helvetica','bold');doc.setFontSize(9.2);doc.text(new Intl.NumberFormat('es-CO').format(item.amount),x+w-2.5,yy+7.7,{align:'right'});
-  yy+=paidH;doc.rect(x,yy,w,conceptH);doc.setFont('helvetica','bold');doc.setFontSize(7.2);doc.text('CONCEPTO / DESCRIPCIÓN',x+2,yy+3.2);fit(doc,receiptConcept(item),x+2,yy+8,w-4,2,8.7,'bold');
+  yy+=paidH;doc.rect(x,yy,w,conceptH);doc.setFont('helvetica','bold');doc.setFontSize(7.4);doc.text('CONCEPTO / DESCRIPCIÓN',x+2,yy+3.2);fit(doc,receiptConcept(item),x+2,yy+8,w-4,2,9.35,'bold');
   yy+=conceptH;doc.setFillColor(...pale);doc.rect(x,yy,w,lettersH,'FD');doc.setFont('helvetica','bold');doc.setFontSize(7.2);doc.text('VALOR (EN LETRAS)',x+2,yy+3.2);fit(doc,`${words(item.amount)} PESOS M/CTE`,x+2,yy+8,w-4,2,8.3,'bold');
-  yy+=lettersH;doc.rect(x,yy,w,bottomH);const leftW=w*.34;doc.line(x+leftW,yy,x+leftW,yy+bottomH);doc.line(x,yy+bottomH/2,x+leftW,yy+bottomH/2);doc.setFont('helvetica','bold');doc.setFontSize(7.0);doc.text('CÓDIGO',x+2,yy+3.7);doc.text('APROBADO',x+2,yy+bottomH/2+3.7);doc.text('FIRMA DE RECIBIDO',x+leftW+2,yy+3.7);
-  const sigY=yy+bottomH-4;if(item.signature)doc.addImage(item.signature,'PNG',x+leftW+20,yy+1,w-leftW-24,bottomH-5);doc.line(x+leftW+2,sigY,x+w-2,sigY);doc.setFont('helvetica','bold');doc.setFontSize(6.2);const isNit=/nit|rut/i.test(item.idType||'');doc.text(isNit?'NIT:':'C.C.:',x+leftW+2,yy+bottomH-1.2);fit(doc,item.idNumber,x+leftW+14,yy+bottomH-1.2,w-leftW-16,1,8.0,'bold');
+  yy+=lettersH;doc.rect(x,yy,w,bottomH);const leftW=w*.34;doc.line(x+leftW,yy,x+leftW,yy+bottomH);doc.line(x,yy+bottomH/2,x+leftW,yy+bottomH/2);doc.setFont('helvetica','bold');doc.setFontSize(7.0);doc.setTextColor(...navy);doc.text('CÓDIGO',x+2,yy+3.7);doc.text('APROBADO',x+2,yy+bottomH/2+3.7);doc.text('FIRMA DE RECIBIDO',x+leftW+2,yy+3.7);
+  const sigY=yy+bottomH-4;if(item.signature)doc.addImage(item.signature,'PNG',x+leftW+20,yy+1,w-leftW-24,bottomH-5);doc.line(x+leftW+2,sigY,x+w-2,sigY);doc.setFont('helvetica','bold');doc.setFontSize(6.2);const isNit=/nit|rut/i.test(item.idType||'');doc.text(isNit?'NIT:':'C.C.:',x+leftW+2,yy+bottomH-1.2);fit(doc,item.idNumber,x+leftW+14,yy+bottomH-1.2,w-leftW-16,1,8.0,'bold');doc.setTextColor(0);
 }
 function receiptNumber(item){const sorted=[...state.movements].filter(x=>x.support==='Recibo de Caja').sort((a,b)=>(a.date+a.createdAt).localeCompare(b.date+b.createdAt));return Math.max(1,sorted.findIndex(x=>x.id===item.id)+1)}
 function receiptHtml(item){
@@ -347,13 +397,13 @@ $('#receiptEdit').onclick=()=>{const id=previewReceiptId;$('#receiptModal').clas
 $('#receiptDownload').onclick=async()=>{
   const item=state.movements.find(x=>x.id===previewReceiptId);if(!item)return;
   if(!item.signature&&!confirm('Este recibo todavía no tiene firma. ¿Descargar de todas formas?'))return;
-  if(!window.jspdf?.jsPDF)throw new Error('No se cargó el generador de PDF. Verifique la conexión a internet y vuelva a abrir la aplicación.');const doc=createLandscapePdf(),logo=await logoData();
-  addHeader(doc,'RECIBO DE CAJA MENOR',logo,1);drawReceipt(doc,12,27,134,82,item,receiptNumber(item),logo);
-  doc.save(`Recibo_RC-${String(receiptNumber(item)).padStart(3,'0')}_${item.thirdParty||'SIS'}_${item.date}.pdf`);
+  if(!window.jspdf?.jsPDF)throw new Error('No se cargó el generador local de PDF. Cierre y vuelva a abrir la aplicación.');const doc=createLandscapePdf(),logo=await logoData();
+  addHeader(doc,'RECIBO DE CAJA MENOR',logo,1);drawReceipt(doc,12,40,pageSize(doc).w-24,112,item,receiptNumber(item),logo);
+  downloadBlob(doc.output('blob'),`Recibo_RC-${String(receiptNumber(item)).padStart(3,'0')}_${item.thirdParty||'SIS'}_${item.date}.pdf`);
 };
 
 async function imgDim(src){return new Promise((ok,fail)=>{const im=new Image();const timer=setTimeout(()=>fail(new Error('El soporte tardó demasiado en cargarse.')),12000);im.onload=()=>{clearTimeout(timer);ok({w:im.naturalWidth||im.width,h:im.naturalHeight||im.height})};im.onerror=()=>{clearTimeout(timer);fail(new Error('No se pudo leer una imagen de soporte.'));};im.src=src})}
-$('#exportPdf').onclick=async()=>{const button=$('#exportPdf');setButtonBusy(button,true,'Generando PDF…');try{const validation=validateCommission({requireDates:true,requireMovements:true});if(validation)return alert(validation);const missing=state.movements.filter(x=>(x.support==='Recibo de Caja'&&!x.signature)||(!x.attachments?.length&&x.support!=='Recibo de Caja'));if(missing.length&&!confirm(`Hay ${missing.length} movimiento(s) con firma o soporte pendiente. ¿Generar de todas formas?`))return;if(!window.jspdf?.jsPDF)throw new Error('No se cargó el generador de PDF. Verifique la conexión a internet y vuelva a abrir la aplicación.');const doc=createLandscapePdf(),logo=await logoData(),all=[...state.movements].sort((a,b)=>(a.date+a.createdAt).localeCompare(b.date+b.createdAt));await drawScof(doc,all,logo);let page=1,receipts=all.filter(x=>x.support==='Recibo de Caja');for(let i=0;i<receipts.length;i+=4){doc.addPage('letter','landscape');addHeader(doc,'RECIBOS DE CAJA MENOR',logo,++page);const group=receipts.slice(i,i+4);const slots=[{x:5,y:24},{x:141,y:24},{x:5,y:111},{x:141,y:111}];for(let j=0;j<group.length;j++){drawReceipt(doc,slots[j].x,slots[j].y,134,82,group[j],i+j+1,logo)}}for(const [idx,x] of all.entries()){for(const a of x.attachments||[]){for(let p=0;p<a.pages.length;p++){const dim=await imgDim(a.pages[p]);doc.addPage('letter','landscape');addHeader(doc,`SOPORTE ${idx+1} - ${x.support.toUpperCase()}`,logo,++page);const ps=pageSize(doc),maxW=ps.w-24,maxH=ps.h-43;doc.setFont('helvetica','bold');fit(doc,`${fmtDate(x.date)} | ${x.thirdParty||''} | ${receiptConcept(x)} | ${money(x.amount)} | ${a.name}${a.pages.length>1?` - Página ${p+1}/${a.pages.length}`:''}`,12,28,maxW,2,7,'bold');const ratio=Math.min(maxW/dim.w,maxH/dim.h),iw=dim.w*ratio,ih=dim.h*ratio;doc.addImage(a.pages[p],'JPEG',ps.w/2-iw/2,35,iw,ih,undefined,'FAST')}}}doc.save(`SIS_${reportSlug()}_${state.meta.aircraft||'SCOF01'}_${today()}.pdf`);await archiveCurrent();toast(`PDF de ${reportName()} generado correctamente`)}catch(e){console.error(e);alert('No fue posible generar el PDF: '+e.message)}finally{setButtonBusy(button,false)}};
+$('#exportPdf').onclick=async()=>{const button=$('#exportPdf');setButtonBusy(button,true,'Generando PDF…');try{const validation=validateCommission({requireDates:true,requireMovements:true});if(validation)return alert(validation);const missing=state.movements.filter(x=>(x.support==='Recibo de Caja'&&!x.signature)||(!x.attachments?.length&&x.support!=='Recibo de Caja'));if(missing.length&&!confirm(`Hay ${missing.length} movimiento(s) con firma o soporte pendiente. ¿Generar de todas formas?`))return;if(!window.jspdf?.jsPDF)throw new Error('No se cargó el generador local de PDF. Cierre y vuelva a abrir la aplicación.');const doc=createLandscapePdf(),logo=await logoData(),all=[...state.movements].sort((a,b)=>(a.date+a.createdAt).localeCompare(b.date+b.createdAt));await drawScof(doc,all,logo);let page=1,receipts=all.filter(x=>x.support==='Recibo de Caja');for(let i=0;i<receipts.length;i+=4){doc.addPage('letter','landscape');addHeader(doc,'RECIBOS DE CAJA MENOR',logo,++page);const group=receipts.slice(i,i+4),slots=[{x:5,y:24},{x:141,y:24},{x:5,y:111},{x:141,y:111}];for(let j=0;j<group.length;j++)drawReceipt(doc,slots[j].x,slots[j].y,134,82,group[j],i+j+1,logo)}for(const x of all){for(const a of x.attachments||[]){for(let p=0;p<a.pages.length;p++){doc.addPage('letter','landscape');await drawSupportPage(doc,a.pages[p],x,a.name,++page,p,a.pages.length,logo)}}}downloadBlob(doc.output('blob'),`SIS_${reportSlug()}_${state.meta.aircraft||'SCOF01'}_${today()}.pdf`);await archiveCurrent();toast(`PDF de ${reportName()} generado correctamente`)}catch(e){console.error(e);alert('No fue posible generar el PDF: '+e.message)}finally{setButtonBusy(button,false)}};
 
 async function renderHistory(){const box=$('#historyList'),items=(await getAll('boxes')).filter(p=>(p.module||p.meta?.reportType||'caja')===activeModule).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt));box.innerHTML=items.length?'':`<p class="muted">No hay informes de ${reportName()} guardados.</p>`;for(const p of items){const spent=p.movements.reduce((sum,x)=>sum+(+x.amount||0),0),d=document.createElement('div');d.className='history-item';d.innerHTML=`<strong>${safe(reportName())} · ${safe(p.meta.aircraft||'Sin aeronave')} · ${safe(p.meta.period||'Sin periodo')}</strong><small>${p.movements.length} movimientos · ${money(spent)} · ${new Date(p.updatedAt).toLocaleString('es-CO')}</small><div class="button-row"><button data-open>Abrir</button><button data-copy>Duplicar</button><button data-del class="danger">Eliminar</button></div>`;d.querySelector('[data-open]').onclick=async()=>{state=structuredClone(p);currentId=p.id;delete state.id;delete state.module;migrateState();syncMetaToForm();await persistDraft();render();showView('homeView')};d.querySelector('[data-copy]').onclick=async()=>{state=structuredClone(p);delete state.id;delete state.module;currentId=null;state.meta.period='';state.meta.startDate='';state.meta.endDate='';state.movements=state.movements.map(x=>({...x,id:uid(),signature:null,reportType:activeModule}));syncMetaToForm();await persistDraft();render();showView('homeView');toast(`Informe de ${reportName()} duplicado`)};d.querySelector('[data-del]').onclick=async()=>{if(confirm(`¿Eliminar este informe de ${reportName()}?`)){await del('boxes',p.id);renderHistory()}};box.appendChild(d)}}
 $('#refreshHistory').onclick=renderHistory;$('#filter').onchange=renderMovements;
@@ -370,9 +420,14 @@ $('#backup').onclick=async()=>{
 $('#restore').onchange=async e=>{
   const input=e.target,file=input.files?.[0];if(!file)return;
   try{
+    if(file.size>100*1024*1024)throw new Error('La copia supera el límite de seguridad de 100 MB.');
     const p=JSON.parse(await file.text());
-    if(!p||typeof p!=='object'||(!p.draft&&!Array.isArray(p.history)))throw new Error('El archivo no corresponde a una copia de SIS Gastos.');
+    if(!p||typeof p!=='object'||p.format!=='SIS_GASTOS_BACKUP'||p.version!==3||(!p.draft&&!Array.isArray(p.history)))throw new Error('El archivo no corresponde a una copia compatible de SIS Gastos.');
     const backupModule=p.module||p.draft?.meta?.reportType||'caja';if(backupModule!==activeModule)throw new Error(`Esta copia corresponde a ${backupModule==='viaticos'?'Viáticos':'Caja Menor'}. Cambie de módulo antes de restaurarla.`);
+    const validReport=b=>b&&typeof b==='object'&&b.meta&&typeof b.meta==='object'&&Array.isArray(b.movements)&&b.movements.every(x=>x&&typeof x==='object'&&typeof x.id==='string'&&Number.isSafeInteger(Number(x.amount))&&Number(x.amount)>0);
+    if(p.draft&&!validReport(p.draft))throw new Error('El borrador contiene datos inválidos.');
+    if((p.history||[]).some(b=>!validReport(b)||typeof b.id!=='string'))throw new Error('El historial contiene datos inválidos.');
+    if(!confirm('La restauración puede reemplazar informes con el mismo identificador. ¿Desea continuar?'))return;
     if(p.draft){state=structuredClone(p.draft);migrateState();await persistDraft()}
     for(const b of p.history||[]){if(b&&b.id&&b.meta&&Array.isArray(b.movements))await put('boxes',null,b)}
     syncMetaToForm();render();toast('Copia restaurada correctamente');
@@ -384,7 +439,7 @@ $('#aircraft').onchange=()=>{const other=$('#aircraft').value==='OTHER';$('#cust
 $('#customAircraft').oninput=()=>{state.meta.aircraft=selectedAircraft();render()};
 $('#startDate').onchange=()=>{updatePeriodUI();syncMetaFromForm()};
 $('#endDate').onchange=()=>{updatePeriodUI();syncMetaFromForm()};
-function showExcelPreview(){try{const validation=validateCommission({requireDates:true});if(validation)return alert(validation);const all=[...state.movements].sort((a,b)=>(a.date+a.createdAt).localeCompare(b.date+b.createdAt)),t=totals(),outside=all.filter(x=>!dateInPeriod(x.date));$('#excelPreviewSummary').innerHTML=`<div><small>Tipo de informe</small><strong>${reportName()}</strong></div><div><small>Aeronave</small><strong>${safe(state.meta.aircraft)}</strong></div><div><small>Periodo</small><strong>${safe(state.meta.period)}</strong></div><div><small>Saldo inicial</small><strong>${money(state.meta.initialBalance)}</strong></div><div><small>Segundo depósito</small><strong>${money(state.meta.secondDeposit)}</strong></div><div><small>Total gastado</small><strong>${money(t.spent)}</strong></div><div><small>Disponible</small><strong>${money(t.balance)}</strong></div>${outside.length?`<div class="field-warning"><small>Advertencia</small><strong>${outside.length} gasto(s) fuera del periodo</strong></div>`:''}`;$('#excelPreviewRows').innerHTML=all.length?all.map(x=>`<tr class="${dateInPeriod(x.date)?'':'out-period'}"><td>${fmtDate(x.date)}</td><td>${safe(x.city)}</td><td>${safe(x.support)}</td><td>${safe(x.thirdParty)}</td><td>${safe(x.idNumber)}</td><td>${safe(x.category)}</td><td>${money(x.amount)}</td></tr>`).join(''):'<tr><td colspan="7">No hay movimientos registrados.</td></tr>';$('#excelPreviewModal').classList.remove('hidden')}catch(e){console.error(e);alert('No fue posible mostrar la vista previa: '+e.message)}}
+function showExcelPreview(){try{const validation=validateCommission({requireDates:true,requireMovements:true});if(validation)return alert(validation);const all=[...state.movements].sort((a,b)=>(a.date+a.createdAt).localeCompare(b.date+b.createdAt)),t=totals(),outside=all.filter(x=>!dateInPeriod(x.date));$('#excelPreviewSummary').innerHTML=`<div><small>Tipo de informe</small><strong>${reportName()}</strong></div><div><small>Aeronave</small><strong>${safe(state.meta.aircraft)}</strong></div><div><small>Periodo</small><strong>${safe(state.meta.period)}</strong></div><div><small>Saldo inicial</small><strong>${money(state.meta.initialBalance)}</strong></div><div><small>Segundo depósito</small><strong>${money(state.meta.secondDeposit)}</strong></div><div><small>Total gastado</small><strong>${money(t.spent)}</strong></div><div><small>Disponible</small><strong>${money(t.balance)}</strong></div>${outside.length?`<div class="field-warning"><small>Advertencia</small><strong>${outside.length} gasto(s) fuera del periodo</strong></div>`:''}`;$('#excelPreviewRows').innerHTML=all.length?all.map(x=>`<tr class="${dateInPeriod(x.date)?'':'out-period'}"><td>${fmtDate(x.date)}</td><td>${safe(x.city)}</td><td>${safe(x.support)}</td><td>${safe(x.thirdParty)}</td><td>${safe(x.idNumber)}</td><td>${safe(x.category)}</td><td>${money(x.amount)}</td></tr>`).join(''):'<tr><td colspan="7">No hay movimientos registrados.</td></tr>';$('#excelPreviewModal').classList.remove('hidden')}catch(e){console.error(e);alert('No fue posible mostrar la vista previa: '+e.message)}}
 $('#previewExcel').onclick=showExcelPreview;$('#closeExcelPreview').onclick=()=>$('#excelPreviewModal').classList.add('hidden');$('#excelPreviewEdit').onclick=()=>$('#excelPreviewModal').classList.add('hidden');$('#excelPreviewDownload').onclick=()=>{ $('#excelPreviewModal').classList.add('hidden');$('#exportExcel').click() };
 
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredPrompt=e;$('#installBtn').classList.remove('hidden')});$('#installBtn').onclick=async()=>{if(deferredPrompt){deferredPrompt.prompt();await deferredPrompt.userChoice;deferredPrompt=null;$('#installBtn').classList.add('hidden')}else alert('En iPhone: abra Compartir y pulse “Añadir a pantalla de inicio”.')};
@@ -397,7 +452,7 @@ $('#switchModuleBtn').onclick=showModuleChooser;
 openDB().then(()=>showModuleChooser()).catch(e=>alert('No se pudo iniciar el almacenamiento local: '+e.message));
 
 // Administrador de actualizaciones v1.7
-const APP_VERSION='1.7.9';
+const APP_VERSION='1.9.3';
 let swRegistration=null;
 let updateReloadPending=false;
 
