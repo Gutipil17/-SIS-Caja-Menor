@@ -126,7 +126,7 @@
       <label>Tipo ID<select id="eIdType"><option>Cédula de Ciudadanía</option><option>NIT/RUT</option><option>Pasaporte</option><option>Otro</option></select></label>
       <label>Número ID<input id="eIdNumber" inputmode="numeric"></label>
       <label>Valor<input id="eAmount" type="number" inputmode="numeric"></label>
-      <label class="wide">Escanear o adjuntar soporte (imagen o PDF)<input id="eFiles" type="file" accept="image/*,application/pdf,.pdf" capture="environment" multiple><small class="field-help">Puedes tomar una foto, elegir imágenes o seleccionar una factura digital en PDF. Los PDF de varias páginas se incorporan completos.</small></label>
+      <label class="wide">Escanear o adjuntar soporte (imagen o PDF)<input id="eFiles" type="file" accept="application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png" multiple><small class="field-help">Puede tomar una foto o seleccionar un PDF, JPG, JPEG o PNG existente.</small></label>
     </div>
     <div id="attachmentPreview" class="attachment-preview"></div>
     <div class="button-row"><button id="signReceipt">Firmar recibo</button><button id="saveExpense" class="primary">Guardar gasto</button></div>
@@ -158,7 +158,7 @@
     <div class="sheet-head"><h2 id="supportTitle">Soportes del movimiento</h2><button id="closeSupport" class="ghost">Cerrar</button></div>
     <p id="supportInfo" class="muted"></p>
     <div id="supportGallery" class="support-gallery"></div>
-    <div class="button-row"><button id="supportEdit">Editar / adjuntar</button><button id="supportDownload" class="primary">Descargar imágenes</button></div>
+    <div class="button-row"><button id="supportEdit">Editar / adjuntar</button><button id="supportDownload" class="primary">Descargar soportes</button></div>
   </div>
 </div>
 
