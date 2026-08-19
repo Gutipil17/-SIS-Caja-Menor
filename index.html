@@ -9,7 +9,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="SIS Caja Menor">
-  <title>SIS Gastos v1.9.5</title>
+  <title>SIS Gastos v1.9.6</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png">
   <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
@@ -19,6 +19,7 @@
   <script src="vendor/exceljs.min.js"></script>
   <script src="vendor/pdf.min.js"></script>
   <script src="official-pagination.js"></script>
+  <script src="support-utils.js"></script>
 </head>
 <body>
 <section id="moduleChooser" class="module-chooser">
@@ -35,7 +36,7 @@
 <div id="appShell" class="hidden">
 <header class="topbar">
   <img src="assets/sis-logo.png" alt="SIS" class="logo">
-  <div><h1 id="appTitle">SIS Gastos</h1><p id="boxTitle">Caja actual</p><small class="version">v1.9.5</small></div>
+  <div><h1 id="appTitle">SIS Gastos</h1><p id="boxTitle">Caja actual</p><small class="version">v1.9.6</small></div>
   <div class="topbar-actions">
     <button id="switchModuleBtn" class="ghost">Cambiar módulo</button>
     <button id="updateBtn" class="ghost">Actualizar</button>
@@ -86,10 +87,10 @@
       <div class="button-stack"><button id="previewExcel">Vista previa del Excel</button><button id="exportExcel">Generar Excel oficial</button><button id="exportPdf" class="primary">Generar PDF completo</button><button id="backup">Crear copia de seguridad</button><label class="file-btn">Restaurar copia<input id="restore" type="file" accept="application/json"></label></div>
     </div>
     <div class="card about-card">
-      <div class="section-head"><h2>Acerca de / Actualizaciones</h2><span id="updateState" class="badge ok">v1.9.5</span></div>
-      <div class="about-grid"><div><small>Versión instalada</small><strong>v1.9.5</strong></div><div><small>Fecha de compilación</small><strong>19/08/2026</strong></div><div><small>Estado</small><strong id="aboutStatus">Lista para verificar</strong></div></div>
+      <div class="section-head"><h2>Acerca de / Actualizaciones</h2><span id="updateState" class="badge ok">v1.9.6</span></div>
+      <div class="about-grid"><div><small>Versión instalada</small><strong>v1.9.6</strong></div><div><small>Fecha de compilación</small><strong>19/08/2026</strong></div><div><small>Estado</small><strong id="aboutStatus">Lista para verificar</strong></div></div>
       <button id="aboutUpdateBtn">Buscar actualizaciones</button>
-      <details><summary>Historial de cambios</summary><div class="changelog"><strong>v1.9.5</strong><p>Permite generar informes con saldo final negativo cuando los gastos reales superan los fondos disponibles.</p><strong>v1.9.4</strong><p>Excel y PDF oficiales paginados automáticamente sin perder movimientos.</p><strong>v1.9.3</strong><p>Se eliminó la hoja adicional de detalle; el PDF contiene únicamente el formato oficial, recibos y soportes.</p><strong>v1.9.2</strong><p>Concepto y descripción más legibles; Excel oficial inalterado.</p><strong>v1.9.1</strong><p>Cuatro recibos profesionales por hoja para ahorrar papel.</p></div></details>
+      <details><summary>Historial de cambios</summary><div class="changelog"><strong>v1.9.6</strong><p>Validación de adjuntos, detección de duplicados, omisión conservadora de páginas vacías y soportes multipágina legibles.</p><strong>v1.9.5</strong><p>Permite generar informes con saldo final negativo cuando los gastos reales superan los fondos disponibles.</p><strong>v1.9.4</strong><p>Excel y PDF oficiales paginados automáticamente sin perder movimientos.</p><strong>v1.9.3</strong><p>Se eliminó la hoja adicional de detalle; el PDF contiene únicamente el formato oficial, recibos y soportes.</p><strong>v1.9.2</strong><p>Concepto y descripción más legibles; Excel oficial inalterado.</p><strong>v1.9.1</strong><p>Cuatro recibos profesionales por hoja para ahorrar papel.</p></div></details>
     </div>
   </section>
 
@@ -127,7 +128,7 @@
       <label>Tipo ID<select id="eIdType"><option>Cédula de Ciudadanía</option><option>NIT/RUT</option><option>Pasaporte</option><option>Otro</option></select></label>
       <label>Número ID<input id="eIdNumber" inputmode="numeric"></label>
       <label>Valor<input id="eAmount" type="number" inputmode="numeric"></label>
-      <label class="wide">Escanear o adjuntar soporte (imagen o PDF)<input id="eFiles" type="file" accept="application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png" multiple><small class="field-help">Puede tomar una foto o seleccionar un PDF, JPG, JPEG o PNG existente.</small></label>
+      <label id="attachmentField" class="wide">Escanear o adjuntar soporte (imagen o PDF)<input id="eFiles" type="file" accept="application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png" multiple><small id="attachmentHelp" class="field-help">Puede tomar una foto o seleccionar un PDF, JPG, JPEG o PNG existente.</small></label>
     </div>
     <div id="attachmentPreview" class="attachment-preview"></div>
     <div class="button-row"><button id="signReceipt">Firmar recibo</button><button id="saveExpense" class="primary">Guardar gasto</button></div>

@@ -1,1 +1,1 @@
-{"version":"1.9.5","build":"2026-08-19","notes":["Permite generar informes con saldo final negativo cuando los gastos reales superan los fondos disponibles."]}
+{"version":"1.9.6","build":"2026-08-19","notes":["Validación de adjuntos en Recibos de Caja.","Detección de soportes duplicados entre movimientos.","Omisión conservadora de páginas PDF vacías.","Numeración correcta de soportes multipágina.","Encabezados de soportes adaptativos sin desbordamiento."]}
