@@ -13,10 +13,10 @@ const bundleText = await read('assets-bundle.js');
 const bundle = JSON.parse(bundleText.match(/window\.SIS_EMBEDDED_ASSETS=(\{.*\});/s)?.[1]||'{}');
 const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
 
-assert.match(app, /const APP_VERSION='1\.9\.6'/);
-assert.match(html, /v1\.9\.6/);
-assert.match(worker, /sis-gastos-v1\.9\.6/);
-assert.equal(JSON.parse(version).version, '1.9.6');
+assert.match(app, /const APP_VERSION='1\.9\.7'/);
+assert.match(html, /v1\.9\.7/);
+assert.match(worker, /sis-gastos-v1\.9\.7/);
+assert.equal(JSON.parse(version).version, '1.9.7');
 
 assert.doesNotMatch(`${app}\n${html}`, /cdn\.jsdelivr\.net/);
 assert.doesNotMatch(app, /ANDRES GUTIERREZ BECERRA/);
@@ -47,4 +47,4 @@ for (const asset of [
   assert.ok(worker.includes(asset), `${asset} debe quedar disponible sin conexión`);
 }
 
-console.log('Controles estáticos v1.9.6: OK');
+console.log('Controles estáticos v1.9.7: OK');

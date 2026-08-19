@@ -1,1 +1,1 @@
-{"version":"1.9.6","build":"2026-08-19","notes":["Validación de adjuntos en Recibos de Caja.","Detección de soportes duplicados entre movimientos.","Omisión conservadora de páginas PDF vacías.","Numeración correcta de soportes multipágina.","Encabezados de soportes adaptativos sin desbordamiento."]}
+{"version":"1.9.7","build":"2026-08-19","notes":["Revisión previa antes del envío de la legalización.","Advertencias documentales no bloqueantes.","Directorio CORREOS SIS con copia rápida de destinatarios.","Preparación del PDF mediante Web Share en iPhone y PWA."]}

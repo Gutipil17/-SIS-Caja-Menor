@@ -5,7 +5,8 @@ const uid=()=>crypto.randomUUID?crypto.randomUUID():`${Date.now()}-${Math.random
 const today=()=>new Date().toISOString().slice(0,10);
 const fmtDate=s=>{if(!s)return'';const [y,m,d]=s.split('-');return `${d}/${m}/${y}`};
 const safe=s=>String(s??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
-let db,currentId=null,editingId=null,tempAttachments=[],tempSignature=null,deferredPrompt=null,previewReceiptId=null,previewSupportId=null;
+const LEGALIZACION_EMAILS=Object.freeze(['facturacion@sisgnss.com','asistentecontable@sisgnss.com']);
+let db,currentId=null,editingId=null,tempAttachments=[],tempSignature=null,deferredPrompt=null,previewReceiptId=null,previewSupportId=null,pendingLegalizationShare=null;
 let activeModule=null;
 function defaultState(module='caja'){return{meta:{reportType:module,placeDate:'',period:'',startDate:'',endDate:'',responsible:'',area:'',position:'',aircraft:'',customAircraft:'',cardNumber:'',initialBalance:0,secondDeposit:0,observations:''},movements:[],updatedAt:new Date().toISOString()}}
 let state=defaultState('caja');
@@ -22,7 +23,7 @@ function totals(){const spent=state.movements.reduce((a,b)=>a+(+b.amount||0),0),
 function isViaticos(){return activeModule==='viaticos'}
 function reportName(){return isViaticos()?'Viáticos':'Caja Menor'}
 function reportSlug(){return isViaticos()?'Viaticos':'Caja_Menor'}
-function updateReportUI(){const name=reportName();if($('#appTitle'))$('#appTitle').textContent=`SIS ${name}`;if($('#reportDataTitle'))$('#reportDataTitle').textContent=`Datos de ${name.toLowerCase()}`;if($('#outputHelp'))$('#outputHelp').textContent=`Genera exclusivamente el Excel oficial y el PDF de ${name}, con sus propios movimientos, recibos, firmas y soportes.`;document.title=`SIS ${name} v1.9.6`;const quick=$('#quickAdd');if(quick)quick.textContent=`+ Añadir gasto de ${name}`;const labels=$$('.metric span');if(labels[0])labels[0].textContent=`Saldo inicial ${name}`;if(labels[1])labels[1].textContent=`Gastado ${name}`;if(labels[2])labels[2].textContent=isViaticos()?'Saldo final Viáticos':'Disponible Caja Menor';if($('#exportExcel'))$('#exportExcel').textContent=`Generar Excel de ${name}`;if($('#exportPdf'))$('#exportPdf').textContent=`Generar PDF de ${name}`;if($('#previewExcel'))$('#previewExcel').textContent=`Vista previa de ${name}`;if($('#historyView h2'))$('#historyView h2').textContent=`Historial de ${name}`;$('#secondDepositWrap')?.classList.toggle('hidden',isViaticos());}
+function updateReportUI(){const name=reportName();if($('#appTitle'))$('#appTitle').textContent=`SIS ${name}`;if($('#reportDataTitle'))$('#reportDataTitle').textContent=`Datos de ${name.toLowerCase()}`;if($('#outputHelp'))$('#outputHelp').textContent=`Genera exclusivamente el Excel oficial y el PDF de ${name}, con sus propios movimientos, recibos, firmas y soportes.`;document.title=`SIS ${name} v1.9.7`;const quick=$('#quickAdd');if(quick)quick.textContent=`+ Añadir gasto de ${name}`;const labels=$$('.metric span');if(labels[0])labels[0].textContent=`Saldo inicial ${name}`;if(labels[1])labels[1].textContent=`Gastado ${name}`;if(labels[2])labels[2].textContent=isViaticos()?'Saldo final Viáticos':'Disponible Caja Menor';if($('#exportExcel'))$('#exportExcel').textContent=`Generar Excel de ${name}`;if($('#exportPdf'))$('#exportPdf').textContent=`Generar PDF de ${name}`;if($('#previewExcel'))$('#previewExcel').textContent=`Vista previa de ${name}`;if($('#historyView h2'))$('#historyView h2').textContent=`Historial de ${name}`;$('#secondDepositWrap')?.classList.toggle('hidden',isViaticos());}
 function normalizeAircraft(value){return String(value||'').toUpperCase().replace(/[^A-Z0-9-]/g,'').replace(/^HK-?/, 'HK')}
 function formatPeriod(start,end){if(!start||!end)return '';const a=new Date(`${start}T00:00:00`),b=new Date(`${end}T00:00:00`);if(Number.isNaN(a)||Number.isNaN(b))return '';const months=['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];if(a.getFullYear()===b.getFullYear()&&a.getMonth()===b.getMonth())return `DEL ${String(a.getDate()).padStart(2,'0')} AL ${String(b.getDate()).padStart(2,'0')} DE ${months[a.getMonth()]} DE ${a.getFullYear()}`;return `DEL ${fmtDate(start)} AL ${fmtDate(end)}`}
 function dateInPeriod(date){
@@ -418,23 +419,69 @@ $('#receiptDownload').onclick=async()=>{
 
 async function imgDim(src){return new Promise((ok,fail)=>{const im=new Image();const timer=setTimeout(()=>fail(new Error('El soporte tardó demasiado en cargarse.')),12000);im.onload=()=>{clearTimeout(timer);ok({w:im.naturalWidth||im.width,h:im.naturalHeight||im.height})};im.onerror=()=>{clearTimeout(timer);fail(new Error('No se pudo leer una imagen de soporte.'));};im.src=src})}
 async function pdfPagesForExport(dataUrl,fileName='PDF adjunto'){const encoded=String(dataUrl||'').split(',')[1];if(!encoded)throw new Error('El PDF adjunto no contiene datos válidos.');const binary=atob(encoded),data=Uint8Array.from(binary,ch=>ch.charCodeAt(0)),pdf=await pdfjsLib.getDocument({data}).promise,pages=[];for(let i=1;i<=pdf.numPages;i++){const source=await pdf.getPage(i),viewport=source.getViewport({scale:1.7}),canvas=document.createElement('canvas');canvas.width=Math.ceil(viewport.width);canvas.height=Math.ceil(viewport.height);const context=canvas.getContext('2d',{willReadFrequently:true});await source.render({canvasContext:context,viewport}).promise;let text='';try{text=(await source.getTextContent()).items.map(item=>item.str||'').join(' ')}catch(error){console.warn('[SIS PDF] No se pudo analizar texto',fileName,i,error)}const result=SISSupportUtils.isEffectivelyBlankPdfPage(context.getImageData(0,0,canvas.width,canvas.height),text);console.info(`[SIS PDF] ${fileName} · página ${i}: ${result.blank?'omitida':'conservada'} · ${result.reason}`,result.metrics);if(!result.blank)pages.push(canvas.toDataURL('image/jpeg',.82))}return pages}
+async function buildConsolidatedPdf({reviewMode=false}={}){
+  if(!reviewMode){
+    const validation=validateCommission({requireDates:true,requireMovements:true});if(validation)throw new Error(validation);
+    const missing=state.movements.filter(x=>!movementStatus(x).complete);if(missing.length&&!confirm(`Hay ${missing.length} movimiento(s) con firma o soporte pendiente. ¿Generar de todas formas?`))return null;
+    const receiptAttachments=state.movements.filter(x=>x.support==='Recibo de Caja'&&x.attachments?.length);if(receiptAttachments.length&&!confirm(`Hay ${receiptAttachments.length} Recibo(s) de Caja con archivos adicionales. El soporte principal es el recibo firmado. ¿Continuar con esos anexos?`))return null;
+    const duplicateGroups=await SISSupportUtils.duplicateGroups(state.movements);if(duplicateGroups.length&&!confirm(`${duplicateSupportMessage(duplicateGroups,'Se detectaron soportes repetidos entre movimientos. Revise los adjuntos antes de generar el informe.')}\n\nAceptar: generar conscientemente. Cancelar: volver a editar.`))return null;
+  }
+  if(!window.jspdf?.jsPDF)throw new Error('No se cargó el generador local de PDF. Cierre y vuelva a abrir la aplicación.');
+  if(!window.SISOfficialPagination)throw new Error('No se cargó el paginador del formato oficial. Cierre y vuelva a abrir la aplicación.');
+  const doc=createLandscapePdf(),logo=await logoData(),all=[...state.movements].sort((a,b)=>(a.date+a.createdAt).localeCompare(b.date+b.createdAt)),officialPages=window.SISOfficialPagination.paginate(all,isViaticos()?30:43);
+  for(let i=0;i<officialPages.length;i++){if(i)doc.addPage('letter','landscape');await drawScof(doc,all,logo,i,officialPages.length)}
+  let page=officialPages.length,receipts=all.filter(x=>x.support==='Recibo de Caja');
+  for(let i=0;i<receipts.length;i+=4){doc.addPage('letter','landscape');addHeader(doc,'RECIBOS DE CAJA MENOR',logo,++page);const group=receipts.slice(i,i+4),slots=[{x:5,y:24},{x:141,y:24},{x:5,y:111},{x:141,y:111}];for(let j=0;j<group.length;j++)drawReceipt(doc,slots[j].x,slots[j].y,134,82,group[j],i+j+1,logo)}
+  let supportNumber=page;
+  for(const x of all){for(const a of x.attachments||[]){const supportPages=a.type==='application/pdf'&&a.data?await pdfPagesForExport(a.data,a.name):(a.pages||[]);if(!supportPages.length){console.warn('[SIS PDF] Soporte omitido porque todas sus páginas estaban vacías:',a.name);continue}supportNumber++;for(let p=0;p<supportPages.length;p++){doc.addPage('letter','landscape');await drawSupportPage(doc,supportPages[p],x,a.name,supportNumber,p,supportPages.length,logo,++page)}}}
+  const blob=doc.output('blob');if(!blob?.size)throw new Error('El PDF consolidado se generó sin contenido.');
+  const signature=new TextDecoder().decode((await blob.slice(0,5).arrayBuffer()));if(signature!=='%PDF-')throw new Error('El archivo final no tiene un formato PDF válido.');
+  return{blob,filename:`SIS_${reportSlug()}_${state.meta.aircraft||'SCOF01'}_${today()}.pdf`,pages:doc.getNumberOfPages()};
+}
 $('#exportPdf').onclick=async()=>{
   const button=$('#exportPdf');setButtonBusy(button,true,'Generando PDF…');
-  try{
-    const validation=validateCommission({requireDates:true,requireMovements:true});if(validation)return alert(validation);
-    const missing=state.movements.filter(x=>!movementStatus(x).complete);if(missing.length&&!confirm(`Hay ${missing.length} movimiento(s) con firma o soporte pendiente. ¿Generar de todas formas?`))return;
-    const receiptAttachments=state.movements.filter(x=>x.support==='Recibo de Caja'&&x.attachments?.length);if(receiptAttachments.length&&!confirm(`Hay ${receiptAttachments.length} Recibo(s) de Caja con archivos adicionales. El soporte principal es el recibo firmado. ¿Continuar con esos anexos?`))return;
-    const duplicateGroups=await SISSupportUtils.duplicateGroups(state.movements);if(duplicateGroups.length&&!confirm(`${duplicateSupportMessage(duplicateGroups,'Se detectaron soportes repetidos entre movimientos. Revise los adjuntos antes de generar el informe.')}\n\nAceptar: generar conscientemente. Cancelar: volver a editar.`))return;
-    if(!window.jspdf?.jsPDF)throw new Error('No se cargó el generador local de PDF. Cierre y vuelva a abrir la aplicación.');if(!window.SISOfficialPagination)throw new Error('No se cargó el paginador del formato oficial. Cierre y vuelva a abrir la aplicación.');
-    const doc=createLandscapePdf(),logo=await logoData(),all=[...state.movements].sort((a,b)=>(a.date+a.createdAt).localeCompare(b.date+b.createdAt)),officialPages=window.SISOfficialPagination.paginate(all,isViaticos()?30:43);
-    for(let i=0;i<officialPages.length;i++){if(i)doc.addPage('letter','landscape');await drawScof(doc,all,logo,i,officialPages.length)}
-    let page=officialPages.length,receipts=all.filter(x=>x.support==='Recibo de Caja');
-    for(let i=0;i<receipts.length;i+=4){doc.addPage('letter','landscape');addHeader(doc,'RECIBOS DE CAJA MENOR',logo,++page);const group=receipts.slice(i,i+4),slots=[{x:5,y:24},{x:141,y:24},{x:5,y:111},{x:141,y:111}];for(let j=0;j<group.length;j++)drawReceipt(doc,slots[j].x,slots[j].y,134,82,group[j],i+j+1,logo)}
-    let supportNumber=page;
-    for(const x of all){for(const a of x.attachments||[]){const supportPages=a.type==='application/pdf'&&a.data?await pdfPagesForExport(a.data,a.name):(a.pages||[]);if(!supportPages.length){console.warn('[SIS PDF] Soporte omitido porque todas sus páginas estaban vacías:',a.name);continue}supportNumber++;for(let p=0;p<supportPages.length;p++){doc.addPage('letter','landscape');await drawSupportPage(doc,supportPages[p],x,a.name,supportNumber,p,supportPages.length,logo,++page)}}}
-    downloadBlob(doc.output('blob'),`SIS_${reportSlug()}_${state.meta.aircraft||'SCOF01'}_${today()}.pdf`);await archiveCurrent();toast(`PDF de ${reportName()} generado correctamente`)
-  }catch(e){console.error(e);alert('No fue posible generar el PDF: '+e.message)}finally{setButtonBusy(button,false)}
+  try{const result=await buildConsolidatedPdf();if(!result)return;downloadBlob(result.blob,result.filename);await archiveCurrent();toast(`PDF de ${reportName()} generado correctamente`)}
+  catch(e){console.error(e);alert('No fue posible generar el PDF: '+e.message)}finally{setButtonBusy(button,false)}
 };
+
+function legalizationEmailSubject(){const context=[String(state.meta.placeDate||'').trim(),String(state.meta.period||'').trim()].filter(Boolean);return`Legalización ${reportName()} - ${context.length?context.join(' - '):fmtDate(today())}`}
+function legalizationEmailBody(){return`Buenos días,\n\nAdjunto envío la documentación correspondiente a la legalización de ${reportName()}.\n\nAgradezco su apoyo con la revisión y trámite correspondiente.\n\nCordial saludo.`}
+function legalizationEmailsText(){return LEGALIZACION_EMAILS.join(', ')}
+function legalizationReviewStats(){
+  const movements=state.movements||[],withSupport=movements.filter(x=>x.support==='Recibo de Caja'?!!x.signature:!!x.attachments?.length).length,missingData=movements.filter(x=>!x.date||!String(x.category||x.detail||'').trim()||!Number.isFinite(Number(x.amount))||Number(x.amount)<=0).length;
+  return{movements:movements.length,total:movements.reduce((sum,x)=>sum+(Number(x.amount)||0),0),withSupport,withoutSupport:movements.length-withSupport,missingData,documents:movements.reduce((sum,x)=>sum+(x.support==='Recibo de Caja'?1:(x.attachments?.length||0)),0)};
+}
+function reviewRow(level,title,detail=''){const icons={ok:'✓',warning:'⚠',error:'✕'};return`<div class="send-check ${level}"><span>${icons[level]}</span><div><strong>${safe(title)}</strong>${detail?`<small>${safe(detail)}</small>`:''}</div></div>`}
+function renderSendReview(review){
+  const box=$('#sendReviewSummary'),button=$('#continueSend');
+  $('#sendRecipientList').innerHTML=`<small>CORREOS SIS</small>${LEGALIZACION_EMAILS.map(email=>`<strong>${safe(email)}</strong>`).join('')}`;
+  if(review.error){box.innerHTML=reviewRow('error','No fue posible preparar el PDF',review.error);$('#sendReviewMessage').textContent='Corrija el error técnico o vuelva a intentarlo. No se abrirá un correo sin un PDF válido.';button.disabled=true;return}
+  const s=review.stats,rows=[reviewRow('ok',`${s.movements} gasto(s) registrado(s)`,`Valor total: ${money(s.total)}`),reviewRow('ok',`${s.withSupport} gasto(s) con soporte`),s.withoutSupport?reviewRow('warning',`${s.withoutSupport} gasto(s) sin soporte`,'Esta advertencia no impide continuar.'):reviewRow('ok','Todos los gastos tienen soporte'),s.missingData?reviewRow('warning',`${s.missingData} gasto(s) con información principal incompleta`,'Revise fecha, concepto y valor si corresponde.'):reviewRow('ok','Datos principales disponibles'),review.duplicateCount?reviewRow('warning',`${review.duplicateCount} soporte(s) repetido(s)`,'Puede continuar y corregirlos posteriormente si es necesario.'):reviewRow('ok','Sin soportes duplicados detectados'),reviewRow('ok','PDF consolidado generado',`${review.pdf.pages} página(s) · ${s.documents} documento(s) aproximado(s)`),reviewRow('ok','Destinatarios configurados',LEGALIZACION_EMAILS.join(' · '))];
+  box.innerHTML=rows.join('');$('#sendReviewMessage').textContent=s.withoutSupport||s.missingData||review.duplicateCount?'Se encontraron advertencias documentales. Puede continuar con el envío.':'La legalización está lista para preparar el correo.';button.disabled=false;
+}
+async function reviewLegalizationForSend(){
+  const button=$('#reviewAndSend');setButtonBusy(button,true,'REVISANDO…');pendingLegalizationShare=null;$('#sendReviewModal').classList.remove('hidden');$('#sendReviewSummary').innerHTML=reviewRow('ok','Generando y verificando el PDF…');$('#sendReviewMessage').textContent='La revisión no modifica los gastos ni sus soportes.';$('#continueSend').disabled=true;
+  try{refreshMetaFromVisibleForm();const stats=legalizationReviewStats(),duplicateCount=(await SISSupportUtils.duplicateGroups(state.movements)).length,pdf=await buildConsolidatedPdf({reviewMode:true});pendingLegalizationShare={pdf,subject:legalizationEmailSubject(),body:legalizationEmailBody()};renderSendReview({stats,duplicateCount,pdf})}
+  catch(error){console.error(error);renderSendReview({error:error.message||'Ocurrió un error técnico desconocido.'})}finally{setButtonBusy(button,false)}
+}
+async function prepareLegalizationEmail(){
+  const prepared=pendingLegalizationShare;if(!prepared?.pdf?.blob?.size)return alert('El PDF final no está disponible. Vuelva a revisar la legalización.');
+  const button=$('#continueSend');setButtonBusy(button,true,'PREPARANDO…');
+  try{
+    const file=new File([prepared.pdf.blob],prepared.pdf.filename,{type:'application/pdf'}),shareData={files:[file],title:prepared.subject,text:prepared.body},canShareFiles=!!navigator.share&&(!navigator.canShare||navigator.canShare({files:[file]}));
+    if(canShareFiles){await navigator.share(shareData);toast('Documento preparado para compartir')}
+    else{downloadBlob(prepared.pdf.blob,prepared.pdf.filename);toast('PDF descargado. Compártalo desde Archivos o Descargas.')}
+  }catch(error){if(error?.name!=='AbortError'){console.error(error);alert('No fue posible abrir el mecanismo de compartir: '+error.message)}}finally{setButtonBusy(button,false)}
+}
+async function copyLegalizationEmails(){
+  const text=legalizationEmailsText();
+  try{
+    if(navigator.clipboard?.writeText)await navigator.clipboard.writeText(text);
+    else{const area=document.createElement('textarea');area.value=text;area.setAttribute('readonly','');area.style.position='fixed';area.style.opacity='0';document.body.appendChild(area);area.select();const copied=document.execCommand('copy');area.remove();if(!copied)throw new Error('El navegador rechazó la copia.')}
+    toast('Correos copiados');
+  }catch(error){console.error(error);toast('No fue posible copiar. Los correos permanecen visibles para copiarlos manualmente.')}
+}
+$('#reviewAndSend').onclick=reviewLegalizationForSend;$('#retrySendReview').onclick=reviewLegalizationForSend;$('#closeSendReview').onclick=()=>$('#sendReviewModal').classList.add('hidden');$('#continueSend').onclick=prepareLegalizationEmail;$('#copyLegalizationEmails').onclick=copyLegalizationEmails;
 
 async function renderHistory(){const box=$('#historyList'),items=(await getAll('boxes')).filter(p=>(p.module||p.meta?.reportType||'caja')===activeModule).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt));box.innerHTML=items.length?'':`<p class="muted">No hay informes de ${reportName()} guardados.</p>`;for(const p of items){const spent=p.movements.reduce((sum,x)=>sum+(+x.amount||0),0),d=document.createElement('div');d.className='history-item';d.innerHTML=`<strong>${safe(reportName())} · ${safe(p.meta.aircraft||'Sin aeronave')} · ${safe(p.meta.period||'Sin periodo')}</strong><small>${p.movements.length} movimientos · ${money(spent)} · ${new Date(p.updatedAt).toLocaleString('es-CO')}</small><div class="button-row"><button data-open>Abrir</button><button data-copy>Duplicar</button><button data-del class="danger">Eliminar</button></div>`;d.querySelector('[data-open]').onclick=async()=>{state=structuredClone(p);currentId=p.id;delete state.id;delete state.module;migrateState();syncMetaToForm();await persistDraft();render();showView('homeView')};d.querySelector('[data-copy]').onclick=async()=>{state=structuredClone(p);delete state.id;delete state.module;currentId=null;state.meta.period='';state.meta.startDate='';state.meta.endDate='';state.movements=state.movements.map(x=>({...x,id:uid(),signature:null,reportType:activeModule}));syncMetaToForm();await persistDraft();render();showView('homeView');toast(`Informe de ${reportName()} duplicado`)};d.querySelector('[data-del]').onclick=async()=>{if(confirm(`¿Eliminar este informe de ${reportName()}?`)){await del('boxes',p.id);renderHistory()}};box.appendChild(d)}}
 $('#refreshHistory').onclick=renderHistory;$('#filter').onchange=renderMovements;
@@ -483,7 +530,7 @@ $('#switchModuleBtn').onclick=showModuleChooser;
 openDB().then(()=>showModuleChooser()).catch(e=>alert('No se pudo iniciar el almacenamiento local: '+e.message));
 
 // Administrador de actualizaciones v1.7
-const APP_VERSION='1.9.6';
+const APP_VERSION='1.9.7';
 let swRegistration=null;
 let updateReloadPending=false;
 
