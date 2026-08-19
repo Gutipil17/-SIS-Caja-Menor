@@ -1,1 +1,1 @@
-{"version":"1.9.4","build":"2026-08-12","notes":["Más de 43 movimientos sin dividir el informe","Hojas oficiales adicionales dentro del mismo Excel","Paginación equivalente del formato oficial en PDF","Movimientos, recibos y soportes conservados completos"]}
+{"version":"1.9.5","build":"2026-08-19","notes":["Permite generar informes con saldo final negativo cuando los gastos reales superan los fondos disponibles."]}
