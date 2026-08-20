@@ -23,7 +23,7 @@ function totals(){const spent=state.movements.reduce((a,b)=>a+(+b.amount||0),0),
 function isViaticos(){return activeModule==='viaticos'}
 function reportName(){return isViaticos()?'Viáticos':'Caja Menor'}
 function reportSlug(){return isViaticos()?'Viaticos':'Caja_Menor'}
-function updateReportUI(){const name=reportName();if($('#appTitle'))$('#appTitle').textContent=`SIS ${name}`;if($('#reportDataTitle'))$('#reportDataTitle').textContent=`Datos de ${name.toLowerCase()}`;if($('#outputHelp'))$('#outputHelp').textContent=`Genera exclusivamente el Excel oficial y el PDF de ${name}, con sus propios movimientos, recibos, firmas y soportes.`;document.title=`SIS ${name} v1.9.8`;const quick=$('#quickAdd');if(quick)quick.textContent=`+ Añadir gasto de ${name}`;const labels=$$('.metric span');if(labels[0])labels[0].textContent=`Saldo inicial ${name}`;if(labels[1])labels[1].textContent=`Gastado ${name}`;if(labels[2])labels[2].textContent=isViaticos()?'Saldo final Viáticos':'Disponible Caja Menor';if($('#exportExcel'))$('#exportExcel').textContent=`Generar Excel de ${name}`;if($('#exportPdf'))$('#exportPdf').textContent=`Generar PDF de ${name}`;if($('#previewExcel'))$('#previewExcel').textContent=`Vista previa de ${name}`;if($('#historyView h2'))$('#historyView h2').textContent=`Historial de ${name}`;$('#secondDepositWrap')?.classList.toggle('hidden',isViaticos());}
+function updateReportUI(){const name=reportName();if($('#appTitle'))$('#appTitle').textContent=`SIS ${name}`;if($('#reportDataTitle'))$('#reportDataTitle').textContent=`Datos de ${name.toLowerCase()}`;if($('#outputHelp'))$('#outputHelp').textContent=`Genera exclusivamente el Excel oficial y el PDF de ${name}, con sus propios movimientos, recibos, firmas y soportes.`;document.title=`SIS ${name} v1.9.9`;const quick=$('#quickAdd');if(quick)quick.textContent=`+ Añadir gasto de ${name}`;const labels=$$('.metric span');if(labels[0])labels[0].textContent=`Saldo inicial ${name}`;if(labels[1])labels[1].textContent=`Gastado ${name}`;if(labels[2])labels[2].textContent=isViaticos()?'Saldo final Viáticos':'Disponible Caja Menor';if($('#exportExcel'))$('#exportExcel').textContent=`Generar Excel de ${name}`;if($('#exportPdf'))$('#exportPdf').textContent=`Generar PDF de ${name}`;if($('#previewExcel'))$('#previewExcel').textContent=`Vista previa de ${name}`;if($('#historyView h2'))$('#historyView h2').textContent=`Historial de ${name}`;$('#secondDepositWrap')?.classList.toggle('hidden',isViaticos());}
 function normalizeAircraft(value){return String(value||'').toUpperCase().replace(/[^A-Z0-9-]/g,'').replace(/^HK-?/, 'HK')}
 function formatPeriod(start,end){if(!start||!end)return '';const a=new Date(`${start}T00:00:00`),b=new Date(`${end}T00:00:00`);if(Number.isNaN(a)||Number.isNaN(b))return '';const months=['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];if(a.getFullYear()===b.getFullYear()&&a.getMonth()===b.getMonth())return `DEL ${String(a.getDate()).padStart(2,'0')} AL ${String(b.getDate()).padStart(2,'0')} DE ${months[a.getMonth()]} DE ${a.getFullYear()}`;return `DEL ${fmtDate(start)} AL ${fmtDate(end)}`}
 function dateInPeriod(date){
@@ -137,7 +137,8 @@ $('#saveExpense').onclick=async()=>{const x={id:editingId||uid(),date:$('#eDate'
 
 // Firma táctil por recibo
 const sig=$('#signatureCanvas'),ctx=sig.getContext('2d');let drawing=false,last=null;
-function resizeSig(){const rect=sig.getBoundingClientRect(),scale=devicePixelRatio||1;sig.width=rect.width*scale;sig.height=220*scale;ctx.setTransform(scale,0,0,scale,0,0);ctx.lineWidth=2.2;ctx.lineCap='round';ctx.strokeStyle='#111';ctx.fillStyle='#fff';ctx.fillRect(0,0,rect.width,220);if(tempSignature){const im=new Image();im.onload=()=>ctx.drawImage(im,0,0,rect.width,220);im.src=tempSignature}}
+function proportionalImageRect(imgW,imgH,x,y,maxW,maxH){const scale=Math.min(maxW/imgW,maxH/imgH),w=imgW*scale,h=imgH*scale;return{x:x+(maxW-w)/2,y:y+(maxH-h)/2,w,h,scale}}
+function resizeSig(){const rect=sig.getBoundingClientRect(),scale=devicePixelRatio||1;sig.width=rect.width*scale;sig.height=220*scale;ctx.setTransform(scale,0,0,scale,0,0);ctx.lineWidth=2.2;ctx.lineCap='round';ctx.strokeStyle='#111';ctx.fillStyle='#fff';ctx.fillRect(0,0,rect.width,220);if(tempSignature){const im=new Image();im.onload=()=>{const p=proportionalImageRect(im.naturalWidth||im.width,im.naturalHeight||im.height,0,0,rect.width,220);ctx.drawImage(im,p.x,p.y,p.w,p.h)};im.src=tempSignature}}
 function pt(e){const r=sig.getBoundingClientRect(),t=e.touches?.[0]||e;return{x:t.clientX-r.left,y:t.clientY-r.top}}
 function start(e){e.preventDefault();drawing=true;last=pt(e)}function move(e){if(!drawing)return;e.preventDefault();const p=pt(e);ctx.beginPath();ctx.moveTo(last.x,last.y);ctx.lineTo(p.x,p.y);ctx.stroke();last=p}function end(){drawing=false}
 ['pointerdown','touchstart'].forEach(n=>sig.addEventListener(n,start,{passive:false}));['pointermove','touchmove'].forEach(n=>sig.addEventListener(n,move,{passive:false}));['pointerup','pointercancel','touchend'].forEach(n=>sig.addEventListener(n,end));
@@ -390,7 +391,7 @@ function drawReceipt(doc,x,y,w,h,item,num,logo){
   yy+=paidH;doc.rect(x,yy,w,conceptH);doc.setFont('helvetica','bold');doc.setFontSize(7.4);doc.text('CONCEPTO / DESCRIPCIÓN',x+2,yy+3.2);fit(doc,receiptConcept(item),x+2,yy+8,w-4,2,9.35,'bold');
   yy+=conceptH;doc.setFillColor(...pale);doc.rect(x,yy,w,lettersH,'FD');doc.setFont('helvetica','bold');doc.setFontSize(7.2);doc.text('VALOR (EN LETRAS)',x+2,yy+3.2);fit(doc,`${words(item.amount)} PESOS M/CTE`,x+2,yy+8,w-4,2,8.3,'bold');
   yy+=lettersH;doc.rect(x,yy,w,bottomH);const leftW=w*.34;doc.line(x+leftW,yy,x+leftW,yy+bottomH);doc.line(x,yy+bottomH/2,x+leftW,yy+bottomH/2);doc.setFont('helvetica','bold');doc.setFontSize(7.0);doc.setTextColor(...navy);doc.text('CÓDIGO',x+2,yy+3.7);doc.text('APROBADO',x+2,yy+bottomH/2+3.7);doc.text('FIRMA DE RECIBIDO',x+leftW+2,yy+3.7);
-  const sigY=yy+bottomH-4;if(item.signature)doc.addImage(item.signature,'PNG',x+leftW+20,yy+1,w-leftW-24,bottomH-5);doc.line(x+leftW+2,sigY,x+w-2,sigY);doc.setFont('helvetica','bold');doc.setFontSize(6.2);const isNit=/nit|rut/i.test(item.idType||'');doc.text(isNit?'NIT:':'C.C.:',x+leftW+2,yy+bottomH-1.2);fit(doc,item.idNumber,x+leftW+14,yy+bottomH-1.2,w-leftW-16,1,8.0,'bold');doc.setTextColor(0);
+  const sigY=yy+bottomH-4;if(item.signature){const box={x:x+leftW+20,y:yy+1,w:w-leftW-24,h:bottomH-5},properties=doc.getImageProperties(item.signature),p=proportionalImageRect(properties.width,properties.height,box.x,box.y,box.w,box.h);doc.addImage(item.signature,'PNG',p.x,p.y,p.w,p.h)}doc.line(x+leftW+2,sigY,x+w-2,sigY);doc.setFont('helvetica','bold');doc.setFontSize(6.2);const isNit=/nit|rut/i.test(item.idType||'');doc.text(isNit?'NIT:':'C.C.:',x+leftW+2,yy+bottomH-1.2);fit(doc,item.idNumber,x+leftW+14,yy+bottomH-1.2,w-leftW-16,1,8.0,'bold');doc.setTextColor(0);
 }
 function receiptNumber(item){const sorted=[...state.movements].filter(x=>x.support==='Recibo de Caja').sort((a,b)=>(a.date+a.createdAt).localeCompare(b.date+b.createdAt));return Math.max(1,sorted.findIndex(x=>x.id===item.id)+1)}
 function receiptHtml(item){
@@ -453,8 +454,11 @@ $('#exportPdf').onclick=async()=>{
   catch(e){console.error(e);alert('No fue posible generar el PDF: '+e.message)}finally{setButtonBusy(button,false)}
 };
 
-function legalizationEmailSubject(){const context=[String(state.meta.placeDate||'').trim(),String(state.meta.period||'').trim()].filter(Boolean);return`Legalización ${reportName()} - ${context.length?context.join(' - '):fmtDate(today())}`}
-function legalizationEmailBody(){return`Buenos días,\n\nAdjunto envío la documentación correspondiente a la legalización de ${reportName()}.\n\nAgradezco su apoyo con la revisión y trámite correspondiente.\n\nCordial saludo.`}
+function commissionDates(){const movementDates=(state.movements||[]).map(x=>x.date).filter(Boolean).sort();return{start:state.meta.startDate||movementDates[0]||'',end:state.meta.endDate||movementDates.at(-1)||movementDates[0]||''}}
+function commissionDateRange(){const {start,end}=commissionDates(),months=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];if(!start||!end)return'con fechas pendientes';const [sy,sm,sd]=start.split('-').map(Number),[ey,em,ed]=end.split('-').map(Number);if(sy===ey&&sm===em)return`del ${sd} al ${ed} de ${months[sm-1]} de ${sy}`;if(sy===ey)return`del ${sd} de ${months[sm-1]} al ${ed} de ${months[em-1]} de ${sy}`;return`del ${sd} de ${months[sm-1]} de ${sy} al ${ed} de ${months[em-1]} de ${ey}`}
+function commissionAircraft(){const aircraft=normalizeAircraft(state.meta.aircraft);return aircraft.startsWith('HK')?aircraft.replace(/^HK-?/,'HK-'):aircraft}
+function legalizationEmailSubject(){return`${reportName()} – Comisión ${commissionDateRange()} – ${commissionAircraft()}`}
+function legalizationEmailBody(){const range=commissionDateRange(),message=reportName()==='Viáticos'?`Envío documentación referente a viáticos de la comisión ${range}.`:`Envío documentación caja menor de la comisión ${range}.`;return`Buen día,\n\n${message}\n\nAtentamente,\n\nCapitán Andrés Gutiérrez`}
 function legalizationEmailsText(){return LEGALIZACION_EMAILS.join(', ')}
 function legalizationReviewStats(){
   const movements=state.movements||[],withSupport=movements.filter(x=>x.support==='Recibo de Caja'?!!x.signature:!!x.attachments?.length).length,missingData=movements.filter(x=>!x.date||!String(x.category||x.detail||'').trim()||!Number.isFinite(Number(x.amount))||Number(x.amount)<=0).length;
@@ -539,7 +543,7 @@ $('#switchModuleBtn').onclick=showModuleChooser;
 openDB().then(()=>showModuleChooser()).catch(e=>alert('No se pudo iniciar el almacenamiento local: '+e.message));
 
 // Administrador de actualizaciones v1.7
-const APP_VERSION='1.9.8';
+const APP_VERSION='1.9.9';
 let swRegistration=null;
 let updateReloadPending=false;
 

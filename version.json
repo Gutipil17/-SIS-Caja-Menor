@@ -1,1 +1,1 @@
-{"version":"1.9.8","build":"2026-08-19","notes":["Soportes ampliados automáticamente en el PDF consolidado.","Rotación de 90° cuando permite una escala mayor.","Mayor resolución y calidad para páginas PDF rasterizadas.","Proporciones, centrado y documentos originales preservados."]}
+{"version":"1.9.9","build":"2026-08-19","notes":["Asunto y cuerpo de correo específicos para Caja Menor o Viáticos.","Rango natural de fechas y matrícula normalizada en el asunto.","Firmas escaladas proporcionalmente sin deformación.","Firmas preservadas correctamente en soportes rotados."]}

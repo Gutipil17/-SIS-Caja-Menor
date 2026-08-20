@@ -2,15 +2,26 @@ import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 
 const app=await readFile(new URL('../app.js',import.meta.url),'utf8'),html=await readFile(new URL('../index.html',import.meta.url),'utf8');
-const start=app.indexOf('function legalizationEmailSubject('),end=app.indexOf('\nfunction reviewRow',start),source=app.slice(start,end);
-const makeApi=state=>Function('state','reportName','fmtDate','today','LEGALIZACION_EMAILS',`${source};return{legalizationEmailSubject,legalizationEmailBody,legalizationEmailsText,legalizationReviewStats}`)(state,()=> 'Caja Menor',value=>value==='2026-08-19'?'19/08/2026':value,()=> '2026-08-19',['facturacion@sisgnss.com','asistentecontable@sisgnss.com']);
+const start=app.indexOf('function commissionDates('),end=app.indexOf('\nfunction reviewRow',start),source=app.slice(start,end);
+const makeApi=(state,type='Caja Menor')=>Function('state','reportName','normalizeAircraft','LEGALIZACION_EMAILS',`${source};return{commissionDateRange,legalizationEmailSubject,legalizationEmailBody,legalizationEmailsText,legalizationReviewStats}`)(state,()=>type,value=>String(value||'').toUpperCase().replace(/[^A-Z0-9-]/g,'').replace(/^HK-?/, 'HK'),['facturacion@sisgnss.com','asistentecontable@sisgnss.com']);
 const movement=(overrides={})=>({date:'2026-08-15',category:'Transporte',detail:'Taxi',amount:50000,support:'Factura',attachments:[{name:'soporte.pdf'}],signature:null,...overrides});
 
 {
-  const state={meta:{placeDate:'Quibdó',period:'Agosto 2026'},movements:[movement(),movement({amount:205275})]},api=makeApi(state),stats=api.legalizationReviewStats();
+  const state={meta:{startDate:'2026-08-16',endDate:'2026-08-31',aircraft:'HK3911'},movements:[movement(),movement({amount:205275})]},api=makeApi(state),stats=api.legalizationReviewStats();
   assert.deepEqual(stats,{movements:2,total:255275,withSupport:2,withoutSupport:0,missingData:0,documents:2});
-  assert.equal(api.legalizationEmailSubject(),'Legalización Caja Menor - Quibdó - Agosto 2026');
+  assert.equal(api.legalizationEmailSubject(),'Caja Menor – Comisión del 16 al 31 de agosto de 2026 – HK-3911');
+  assert.equal(api.legalizationEmailBody(),'Buen día,\n\nEnvío documentación caja menor de la comisión del 16 al 31 de agosto de 2026.\n\nAtentamente,\n\nCapitán Andrés Gutiérrez');
   assert.equal(api.legalizationEmailsText(),'facturacion@sisgnss.com, asistentecontable@sisgnss.com');
+}
+{
+  const state={meta:{startDate:'2026-08-16',endDate:'2026-08-31',aircraft:'HK-3911'},movements:[]},api=makeApi(state,'Viáticos');
+  assert.equal(api.legalizationEmailSubject(),'Viáticos – Comisión del 16 al 31 de agosto de 2026 – HK-3911');
+  assert.equal(api.legalizationEmailBody(),'Buen día,\n\nEnvío documentación referente a viáticos de la comisión del 16 al 31 de agosto de 2026.\n\nAtentamente,\n\nCapitán Andrés Gutiérrez');
+}
+{
+  const api=makeApi({meta:{startDate:'2026-08-28',endDate:'2026-09-05',aircraft:'HK3911'},movements:[]});assert.equal(api.commissionDateRange(),'del 28 de agosto al 5 de septiembre de 2026');
+  const crossYear=makeApi({meta:{startDate:'2026-12-28',endDate:'2027-01-05',aircraft:'HK3911'},movements:[]});assert.equal(crossYear.commissionDateRange(),'del 28 de diciembre de 2026 al 5 de enero de 2027');
+  const fallback=makeApi({meta:{aircraft:'HK3911'},movements:[movement({date:'2026-08-31'}),movement({date:'2026-08-16'})]});assert.equal(fallback.commissionDateRange(),'del 16 al 31 de agosto de 2026');
 }
 {
   const state={meta:{},movements:[movement(),movement({attachments:[]})]},stats=makeApi(state).legalizationReviewStats();assert.equal(stats.withoutSupport,1);assert.equal(stats.movements,2);
@@ -38,4 +49,4 @@ assert.match(html,/id="reviewAndSend"/);assert.match(html,/id="sendReviewModal"/
   await copy();assert.equal(selected,'facturacion@sisgnss.com, asistentecontable@sisgnss.com');assert.equal(message,'Correos copiados');assert.equal(area.removed,true);
 }
 assert.doesNotMatch(source,/persistDraft|archiveCurrent|put\(|del\(/);
-console.log('Revisión y preparación de correo: 9 escenarios específicos OK');
+console.log('Revisión y preparación de correo: 12 escenarios específicos OK');
