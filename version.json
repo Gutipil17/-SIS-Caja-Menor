@@ -1,1 +1,1 @@
-{"version":"1.9.7","build":"2026-08-19","notes":["Revisión previa antes del envío de la legalización.","Advertencias documentales no bloqueantes.","Directorio CORREOS SIS con copia rápida de destinatarios.","Preparación del PDF mediante Web Share en iPhone y PWA."]}
+{"version":"1.9.8","build":"2026-08-19","notes":["Soportes ampliados automáticamente en el PDF consolidado.","Rotación de 90° cuando permite una escala mayor.","Mayor resolución y calidad para páginas PDF rasterizadas.","Proporciones, centrado y documentos originales preservados."]}

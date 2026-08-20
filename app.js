@@ -23,7 +23,7 @@ function totals(){const spent=state.movements.reduce((a,b)=>a+(+b.amount||0),0),
 function isViaticos(){return activeModule==='viaticos'}
 function reportName(){return isViaticos()?'Viáticos':'Caja Menor'}
 function reportSlug(){return isViaticos()?'Viaticos':'Caja_Menor'}
-function updateReportUI(){const name=reportName();if($('#appTitle'))$('#appTitle').textContent=`SIS ${name}`;if($('#reportDataTitle'))$('#reportDataTitle').textContent=`Datos de ${name.toLowerCase()}`;if($('#outputHelp'))$('#outputHelp').textContent=`Genera exclusivamente el Excel oficial y el PDF de ${name}, con sus propios movimientos, recibos, firmas y soportes.`;document.title=`SIS ${name} v1.9.7`;const quick=$('#quickAdd');if(quick)quick.textContent=`+ Añadir gasto de ${name}`;const labels=$$('.metric span');if(labels[0])labels[0].textContent=`Saldo inicial ${name}`;if(labels[1])labels[1].textContent=`Gastado ${name}`;if(labels[2])labels[2].textContent=isViaticos()?'Saldo final Viáticos':'Disponible Caja Menor';if($('#exportExcel'))$('#exportExcel').textContent=`Generar Excel de ${name}`;if($('#exportPdf'))$('#exportPdf').textContent=`Generar PDF de ${name}`;if($('#previewExcel'))$('#previewExcel').textContent=`Vista previa de ${name}`;if($('#historyView h2'))$('#historyView h2').textContent=`Historial de ${name}`;$('#secondDepositWrap')?.classList.toggle('hidden',isViaticos());}
+function updateReportUI(){const name=reportName();if($('#appTitle'))$('#appTitle').textContent=`SIS ${name}`;if($('#reportDataTitle'))$('#reportDataTitle').textContent=`Datos de ${name.toLowerCase()}`;if($('#outputHelp'))$('#outputHelp').textContent=`Genera exclusivamente el Excel oficial y el PDF de ${name}, con sus propios movimientos, recibos, firmas y soportes.`;document.title=`SIS ${name} v1.9.8`;const quick=$('#quickAdd');if(quick)quick.textContent=`+ Añadir gasto de ${name}`;const labels=$$('.metric span');if(labels[0])labels[0].textContent=`Saldo inicial ${name}`;if(labels[1])labels[1].textContent=`Gastado ${name}`;if(labels[2])labels[2].textContent=isViaticos()?'Saldo final Viáticos':'Disponible Caja Menor';if($('#exportExcel'))$('#exportExcel').textContent=`Generar Excel de ${name}`;if($('#exportPdf'))$('#exportPdf').textContent=`Generar PDF de ${name}`;if($('#previewExcel'))$('#previewExcel').textContent=`Vista previa de ${name}`;if($('#historyView h2'))$('#historyView h2').textContent=`Historial de ${name}`;$('#secondDepositWrap')?.classList.toggle('hidden',isViaticos());}
 function normalizeAircraft(value){return String(value||'').toUpperCase().replace(/[^A-Z0-9-]/g,'').replace(/^HK-?/, 'HK')}
 function formatPeriod(start,end){if(!start||!end)return '';const a=new Date(`${start}T00:00:00`),b=new Date(`${end}T00:00:00`);if(Number.isNaN(a)||Number.isNaN(b))return '';const months=['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];if(a.getFullYear()===b.getFullYear()&&a.getMonth()===b.getMonth())return `DEL ${String(a.getDate()).padStart(2,'0')} AL ${String(b.getDate()).padStart(2,'0')} DE ${months[a.getMonth()]} DE ${a.getFullYear()}`;return `DEL ${fmtDate(start)} AL ${fmtDate(end)}`}
 function dateInPeriod(date){
@@ -243,17 +243,26 @@ function supportHeaderLayout(doc,item,fileName,pageIndex,pageCount,width){
   const rows=[];for(const entry of entries){doc.setFont('helvetica',entry.style);doc.setFontSize(entry.size);for(const line of doc.splitTextToSize(String(entry.text),width))rows.push({...entry,text:line})}
   return{rows,height:Math.max(23,7+rows.reduce((sum,row)=>sum+row.size*.36+1.05,0))};
 }
+function supportImagePlacement(dim,frame,padding=2){
+  const availableW=Math.max(0,frame.w-padding*2),availableH=Math.max(0,frame.h-padding*2);
+  const originalScale=Math.min(availableW/dim.w,availableH/dim.h),rotatedScale=Math.min(availableW/dim.h,availableH/dim.w),rotated=rotatedScale>originalScale;
+  const scale=rotated?rotatedScale:originalScale,visualW=(rotated?dim.h:dim.w)*scale,visualH=(rotated?dim.w:dim.h)*scale;
+  return{rotated,rotation:rotated?90:0,scale,originalScale,rotatedScale,x:frame.x+(frame.w-visualW)/2,y:frame.y+(frame.h-visualH)/2,w:visualW,h:visualH};
+}
 async function drawSupportPage(doc,src,item,fileName,supportNumber,pageIndex,pageCount,logo,pdfPageNumber){
-  const dim=await imgDim(src),ps=pageSize(doc),mx=12,title=`SOPORTE ${supportNumber} - ${String(item.support||'DOCUMENTO').toUpperCase()}${pageCount>1?` · Hoja ${pageIndex+1} de ${pageCount}`:''}`;
+  const dim=await imgDim(src),ps=pageSize(doc),mx=5,title=`SOPORTE ${supportNumber} - ${String(item.support||'DOCUMENTO').toUpperCase()}${pageCount>1?` · Hoja ${pageIndex+1} de ${pageCount}`:''}`;
   addHeader(doc,title,logo,pdfPageNumber);
   const layout=supportHeaderLayout(doc,item,fileName,pageIndex,pageCount,ps.w-mx*2-6),infoY=25;
   doc.setFillColor(239,244,249);doc.setDrawColor(182,194,205);doc.roundedRect(mx,infoY,ps.w-mx*2,layout.height,2,2,'FD');
   doc.setTextColor(15,39,66);let y=infoY+5;
   for(const row of layout.rows){doc.setFont('helvetica',row.style);doc.setFontSize(row.size);doc.text(row.text,mx+3,y);y+=row.size*.36+1.05}
-  const frameY=infoY+layout.height+4,frame={x:mx,y:frameY,w:ps.w-mx*2,h:ps.h-frameY-13};
+  const frameY=infoY+layout.height+2.5,frame={x:mx,y:frameY,w:ps.w-mx*2,h:ps.h-frameY-8};
   doc.setFillColor(255);doc.setDrawColor(165,175,185);doc.roundedRect(frame.x,frame.y,frame.w,frame.h,1.5,1.5,'FD');
-  const inner=4,ratio=Math.min((frame.w-inner*2)/dim.w,(frame.h-inner*2)/dim.h),iw=dim.w*ratio,ih=dim.h*ratio;
-  doc.addImage(src,'JPEG',frame.x+(frame.w-iw)/2,frame.y+(frame.h-ih)/2,iw,ih,undefined,'FAST');
+  const placement=supportImagePlacement(dim,frame),format=String(src).startsWith('data:image/png')?'PNG':'JPEG';
+  if(placement.rotated){
+    const imageW=placement.h,imageH=placement.w;
+    doc.addImage(src,format,placement.x+placement.w,placement.y+placement.h-placement.w,imageW,imageH,undefined,'FAST',90);
+  }else doc.addImage(src,format,placement.x,placement.y,placement.w,placement.h,undefined,'FAST');
 }
 async function drawScof(doc,all,logo,pageIndex=0,pageCount=1){
   // v1.7.7: formulario vectorial. No se superpone texto sobre una imagen.
@@ -418,7 +427,7 @@ $('#receiptDownload').onclick=async()=>{
 };
 
 async function imgDim(src){return new Promise((ok,fail)=>{const im=new Image();const timer=setTimeout(()=>fail(new Error('El soporte tardó demasiado en cargarse.')),12000);im.onload=()=>{clearTimeout(timer);ok({w:im.naturalWidth||im.width,h:im.naturalHeight||im.height})};im.onerror=()=>{clearTimeout(timer);fail(new Error('No se pudo leer una imagen de soporte.'));};im.src=src})}
-async function pdfPagesForExport(dataUrl,fileName='PDF adjunto'){const encoded=String(dataUrl||'').split(',')[1];if(!encoded)throw new Error('El PDF adjunto no contiene datos válidos.');const binary=atob(encoded),data=Uint8Array.from(binary,ch=>ch.charCodeAt(0)),pdf=await pdfjsLib.getDocument({data}).promise,pages=[];for(let i=1;i<=pdf.numPages;i++){const source=await pdf.getPage(i),viewport=source.getViewport({scale:1.7}),canvas=document.createElement('canvas');canvas.width=Math.ceil(viewport.width);canvas.height=Math.ceil(viewport.height);const context=canvas.getContext('2d',{willReadFrequently:true});await source.render({canvasContext:context,viewport}).promise;let text='';try{text=(await source.getTextContent()).items.map(item=>item.str||'').join(' ')}catch(error){console.warn('[SIS PDF] No se pudo analizar texto',fileName,i,error)}const result=SISSupportUtils.isEffectivelyBlankPdfPage(context.getImageData(0,0,canvas.width,canvas.height),text);console.info(`[SIS PDF] ${fileName} · página ${i}: ${result.blank?'omitida':'conservada'} · ${result.reason}`,result.metrics);if(!result.blank)pages.push(canvas.toDataURL('image/jpeg',.82))}return pages}
+async function pdfPagesForExport(dataUrl,fileName='PDF adjunto'){const encoded=String(dataUrl||'').split(',')[1];if(!encoded)throw new Error('El PDF adjunto no contiene datos válidos.');const binary=atob(encoded),data=Uint8Array.from(binary,ch=>ch.charCodeAt(0)),pdf=await pdfjsLib.getDocument({data}).promise,pages=[];for(let i=1;i<=pdf.numPages;i++){const source=await pdf.getPage(i),viewport=source.getViewport({scale:2.2}),canvas=document.createElement('canvas');canvas.width=Math.ceil(viewport.width);canvas.height=Math.ceil(viewport.height);const context=canvas.getContext('2d',{willReadFrequently:true});await source.render({canvasContext:context,viewport}).promise;let text='';try{text=(await source.getTextContent()).items.map(item=>item.str||'').join(' ')}catch(error){console.warn('[SIS PDF] No se pudo analizar texto',fileName,i,error)}const result=SISSupportUtils.isEffectivelyBlankPdfPage(context.getImageData(0,0,canvas.width,canvas.height),text);console.info(`[SIS PDF] ${fileName} · página ${i}: ${result.blank?'omitida':'conservada'} · ${result.reason}`,result.metrics);if(!result.blank)pages.push(canvas.toDataURL('image/jpeg',.94))}return pages}
 async function buildConsolidatedPdf({reviewMode=false}={}){
   if(!reviewMode){
     const validation=validateCommission({requireDates:true,requireMovements:true});if(validation)throw new Error(validation);
@@ -530,7 +539,7 @@ $('#switchModuleBtn').onclick=showModuleChooser;
 openDB().then(()=>showModuleChooser()).catch(e=>alert('No se pudo iniciar el almacenamiento local: '+e.message));
 
 // Administrador de actualizaciones v1.7
-const APP_VERSION='1.9.7';
+const APP_VERSION='1.9.8';
 let swRegistration=null;
 let updateReloadPending=false;
 

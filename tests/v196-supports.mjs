@@ -24,7 +24,7 @@ await test('12 firma mínima relevante se conserva',()=>{const marks=Array.from(
 await test('13 nombre largo usa splitTextToSize',()=>assert.match(app,/Archivo:.*fileName/));
 await test('14 tercero largo usa filas dinámicas',()=>assert.match(app,/rows\.push\(\{\.\.\.entry,text:line\}\)/));
 await test('15 concepto largo usa filas dinámicas',()=>assert.match(app,/receiptConcept\(item\)/));
-await test('16 encabezado desplaza imagen',()=>assert.match(app,/frameY=infoY\+layout\.height\+4/));
+await test('16 encabezado desplaza imagen',()=>assert.match(app,/frameY=infoY\+layout\.height\+2\.5/));
 await test('17 multipágina mantiene mismo número',()=>{const p=utils.supportPagePlan([{pages:[1,2,3]}]);assert.equal(new Set(p[0].pages.map(()=>p[0].supportNumber)).size,1)});
 await test('18 numeración consecutiva entre archivos',()=>assert.deepEqual(utils.supportPagePlan([{pages:[1,2]},{pages:[3]}],25).map(x=>x.supportNumber),[25,26]));
 for(const [n,balance] of [[19,1000],[20,0],[21,-1000],[22,-121230]])await test(`${n} saldo ${balance} no bloqueado`,()=>{assert.doesNotMatch(app,/totals\(\)\.balance<0/);assert.doesNotMatch(app,/Los gastos superan los fondos disponibles/)});
